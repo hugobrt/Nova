@@ -451,10 +451,25 @@ document.getElementById('config-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const formData = new FormData(e.target);
   const body = Object.fromEntries(formData.entries());
-  await fetch(`/api/${GUILD_ID}/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const saved = document.getElementById('config-saved');
-  saved.classList.remove('hidden');
-  setTimeout(() => saved.classList.add('hidden'), 2000);
+  saved.classList.add('hidden');
+  const res = await fetch(`/api/${GUILD_ID}/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (res.ok) {
+    const updated = await res.json();
+    saved.textContent = '✅ Enregistré';
+    saved.classList.remove('text-red-400');
+    saved.classList.add('text-green-400');
+    saved.classList.remove('hidden');
+    setTimeout(() => saved.classList.add('hidden'), 2500);
+    loadConfig();
+  } else {
+    let detail = 'Erreur inconnue.';
+    try { const err = await res.json(); detail = err.detail || detail; } catch (e2) {}
+    saved.textContent = '⚠️ Échec : ' + detail;
+    saved.classList.remove('text-green-400');
+    saved.classList.add('text-red-400');
+    saved.classList.remove('hidden');
+  }
   loadStats();
 });
 
