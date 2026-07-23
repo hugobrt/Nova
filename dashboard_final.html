@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard {{ guild_id }}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+
+<nav class="bg-slate-800 px-6 py-4 flex items-center justify-between shadow">
+  <div class="flex items-center gap-3">
+    <span class="text-2xl">🚌</span>
+    <span class="font-bold text-lg">Dashboard Admin</span>
+  </div>
+  <div class="flex items-center gap-4 text-sm text-slate-300">
+    <span>Connecté : <span class="font-semibold text-white">{{ user.username }}</span></span>
+    <a href="/logout" class="text-red-400 hover:text-red-300">Déconnexion</a>
+  </div>
+</nav>
+
+<div class="max-w-6xl mx-auto px-6 py-8">
+
+  <div class="flex gap-2 mb-8 border-b border-slate-700 flex-wrap">
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-indigo-500 text-white" data-tab="stats">Statistiques</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="members">Membres</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="jobs">Offres d'emploi</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="recruitment">Recrutement</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="employees">Employés</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="announce">Annonces</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="config">Configuration</button>
+  </div>
+
+  <!-- STATS -->
+  <div id="tab-stats" class="tab-content grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="bg-slate-800 rounded-xl p-5"><div class="text-slate-400 text-sm">Membres</div><div id="stat-members" class="text-3xl font-bold mt-1">-</div></div>
+    <div class="bg-slate-800 rounded-xl p-5"><div class="text-slate-400 text-sm">Humains / Bots</div><div id="stat-humans" class="text-3xl font-bold mt-1">-</div></div>
+    <div class="bg-slate-800 rounded-xl p-5"><div class="text-slate-400 text-sm">Salons</div><div id="stat-channels" class="text-3xl font-bold mt-1">-</div></div>
+    <div class="bg-slate-800 rounded-xl p-5"><div class="text-slate-400 text-sm">Rôles</div><div id="stat-roles" class="text-3xl font-bold mt-1">-</div></div>
+  </div>
+
+  <!-- MEMBRES -->
+  <div id="tab-members" class="tab-content hidden">
+    <div class="bg-slate-800 rounded-xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-700 text-slate-300">
+          <tr><th class="text-left px-4 py-3">Membre</th><th class="text-left px-4 py-3">Rôles</th><th class="text-left px-4 py-3">Arrivé le</th></tr>
+        </thead>
+        <tbody id="members-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- OFFRES D'EMPLOI -->
+  <div id="tab-jobs" class="tab-content hidden space-y-4">
+    <div id="jobs-list" class="grid gap-4"></div>
+  </div>
+
+  <!-- RECRUTEMENT SPONTANÉ -->
+  <div id="tab-recruitment" class="tab-content hidden space-y-4">
+    <div class="flex gap-2 mb-2">
+      <button class="rec-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="pending">En attente</button>
+      <button class="rec-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Toutes</button>
+    </div>
+    <div id="recruitment-list" class="grid gap-4"></div>
+  </div>
+
+  <!-- EMPLOYÉS -->
+  <div id="tab-employees" class="tab-content hidden space-y-4">
+    <div id="employees-list" class="grid gap-4"></div>
+  </div>
+
+  <!-- ANNONCES -->
+  <div id="tab-announce" class="tab-content hidden">
+    <form id="announce-form" class="bg-slate-800 rounded-xl p-6 space-y-5 max-w-2xl">
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Salon de destination</label>
+        <select name="channel_id" id="announce-channel" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Type de message</label>
+        <select name="mode" id="announce-mode" class="w-full bg-slate-700 rounded-lg px-3 py-2">
+          <option value="embed">Embed (avec titre + couleur)</option>
+          <option value="plain">Message simple</option>
+        </select>
+      </div>
+      <div id="announce-title-wrap">
+        <label class="block text-sm text-slate-400 mb-1">Titre (embed uniquement)</label>
+        <input type="text" name="title" maxlength="256" class="w-full bg-slate-700 rounded-lg px-3 py-2" placeholder="Ex : Annonce importante">
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Contenu du message</label>
+        <textarea name="content" rows="6" maxlength="4000" required class="w-full bg-slate-700 rounded-lg px-3 py-2" placeholder="Ton message ici... (Markdown Discord supporté)"></textarea>
+      </div>
+      <div id="announce-color-wrap">
+        <label class="block text-sm text-slate-400 mb-1">Couleur de l'embed</label>
+        <select name="color" class="w-full bg-slate-700 rounded-lg px-3 py-2">
+          <option value="blurple">Blurple</option>
+          <option value="green">Vert</option>
+          <option value="red">Rouge</option>
+          <option value="orange">Orange</option>
+          <option value="gold">Or</option>
+          <option value="greyple">Gris</option>
+        </select>
+      </div>
+      <label class="flex items-center gap-2 text-sm text-slate-300">
+        <input type="checkbox" name="mention_everyone" class="rounded">
+        Mentionner @everyone
+      </label>
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 transition rounded-lg px-6 py-2 font-semibold">Envoyer le message</button>
+      <span id="announce-sent" class="ml-3 text-green-400 hidden">✅ Message envoyé</span>
+      <span id="announce-error" class="ml-3 text-red-400 hidden"></span>
+    </form>
+  </div>
+
+  <!-- CONFIGURATION -->
+  <div id="tab-config" class="tab-content hidden">
+    <form id="config-form" class="bg-slate-800 rounded-xl p-6 space-y-5 max-w-xl">
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Salon règlement</label>
+        <select name="rules_channel_id" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Salon de bienvenue</label>
+        <select name="welcome_channel_id" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Rôle membre (accepté le règlement)</label>
+        <select name="member_role_id" class="role-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Salon des offres d'emploi</label>
+        <select name="jobs_channel_id" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Salon de suivi des candidatures (offres)</label>
+        <select name="application_log_channel_id" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Salon de recrutement (bouton candidature spontanée)</label>
+        <select name="recruitment_channel_id" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Salon de suivi RH (candidatures spontanées)</label>
+        <select name="recruitment_log_channel_id" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Rôle employé (attribué à l'embauche)</label>
+        <select name="employee_role_id" class="role-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Rôle RH (peut gérer offres/recrutement/employés sans être admin)</label>
+        <select name="hr_role_id" class="role-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 transition rounded-lg px-6 py-2 font-semibold">Enregistrer</button>
+      <span id="config-saved" class="ml-3 text-green-400 hidden">✅ Enregistré</span>
+    </form>
+  </div>
+
+</div>
+
+<script>
+const GUILD_ID = {{ guild_id }};
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.remove('border-indigo-500', 'text-white');
+      b.classList.add('border-transparent', 'text-slate-400');
+    });
+    btn.classList.add('border-indigo-500', 'text-white');
+    btn.classList.remove('border-transparent', 'text-slate-400');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
+    if (btn.dataset.tab === 'members') loadMembers();
+    if (btn.dataset.tab === 'jobs') loadJobs();
+    if (btn.dataset.tab === 'recruitment') loadRecruitment('pending');
+    if (btn.dataset.tab === 'employees') loadEmployees();
+    if (btn.dataset.tab === 'config') loadConfig();
+    if (btn.dataset.tab === 'announce') loadAnnounceChannels();
+  });
+});
+
+async function loadStats() {
+  const res = await fetch(`/api/${GUILD_ID}/stats`);
+  if (!res.ok) return;
+  const d = await res.json();
+  document.getElementById('stat-members').textContent = d.members_total;
+  document.getElementById('stat-humans').textContent = `${d.humans} / ${d.bots}`;
+  document.getElementById('stat-channels').textContent = d.channels;
+  document.getElementById('stat-roles').textContent = d.roles;
+}
+
+async function loadMembers() {
+  const res = await fetch(`/api/${GUILD_ID}/members?limit=200`);
+  if (!res.ok) return;
+  const members = await res.json();
+  const body = document.getElementById('members-body');
+  body.innerHTML = members.map(m => `
+    <tr class="border-t border-slate-700">
+      <td class="px-4 py-2">${m.name}</td>
+      <td class="px-4 py-2 text-slate-400">${m.roles.join(', ')}</td>
+      <td class="px-4 py-2 text-slate-400">${m.joined_at ? new Date(m.joined_at).toLocaleDateString('fr-FR') : ''}</td>
+    </tr>`).join('');
+}
+
+async function loadJobs() {
+  const res = await fetch(`/api/${GUILD_ID}/jobs`);
+  if (!res.ok) { document.getElementById('jobs-list').innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
+  const jobs = await res.json();
+  const container = document.getElementById('jobs-list');
+  if (jobs.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune offre publiée pour l\'instant.</p>'; return; }
+  container.innerHTML = jobs.map(job => `
+    <div class="bg-slate-800 rounded-xl p-5">
+      <div class="flex justify-between items-start">
+        <div>
+          <h3 class="font-bold text-lg">${job.title} <span class="text-sm font-normal text-slate-400">#${job.id}</span></h3>
+          <p class="text-slate-400 text-sm mt-1">${job.description}</p>
+        </div>
+        <span class="text-xs px-2 py-1 rounded-full ${job.status === 'open' ? 'bg-green-700' : 'bg-slate-600'}">${job.status === 'open' ? 'Ouvert' : 'Clôturé'}</span>
+      </div>
+      <div class="mt-3 text-sm text-slate-300">${job.applications.length} candidature(s)
+        ${job.applications.length ? `<ul class="mt-2 space-y-1">${job.applications.map(a => `<li class="text-slate-400">${a.user_id} — <span class="${a.status === 'accepted' ? 'text-green-400' : a.status === 'refused' ? 'text-red-400' : 'text-yellow-400'}">${a.status}</span></li>`).join('')}</ul>` : ''}
+      </div>
+      ${job.status === 'open' ? `<button onclick="closeJob(${job.id})" class="mt-3 text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">Clôturer</button>` : ''}
+    </div>`).join('');
+}
+async function closeJob(jobId) {
+  await fetch(`/api/${GUILD_ID}/jobs/${jobId}/close`, { method: 'POST' });
+  loadJobs();
+}
+
+document.querySelectorAll('.rec-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.rec-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
+    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    loadRecruitment(btn.dataset.status);
+  });
+});
+
+async function loadRecruitment(status) {
+  const url = status ? `/api/${GUILD_ID}/recruitment?status=${status}` : `/api/${GUILD_ID}/recruitment`;
+  const res = await fetch(url);
+  const container = document.getElementById('recruitment-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
+  const apps = await res.json();
+  if (apps.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune candidature.</p>'; return; }
+  container.innerHTML = apps.map(a => `
+    <div class="bg-slate-800 rounded-xl p-5">
+      <div class="flex justify-between items-start">
+        <div>
+          <h3 class="font-bold text-lg">Candidat &lt;@${a.user_id}&gt; <span class="text-sm font-normal text-slate-400">#${a.id}</span></h3>
+          <p class="text-slate-400 text-sm mt-1">Poste : ${a.poste_souhaite || '-'}</p>
+          <p class="text-slate-300 text-sm mt-2">${a.motivation || ''}</p>
+          <p class="text-slate-500 text-xs mt-1">Dispo : ${a.disponibilite || '-'}</p>
+        </div>
+        <span class="text-xs px-2 py-1 rounded-full ${a.status === 'accepted' ? 'bg-green-700' : a.status === 'refused' ? 'bg-red-700' : 'bg-yellow-700'}">${a.status}</span>
+      </div>
+      ${a.status === 'pending' ? `
+      <div class="mt-3 flex gap-2">
+        <button onclick="acceptRecruitment(${a.id})" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">✅ Accepter</button>
+        <button onclick="denyRecruitment(${a.id})" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">❌ Refuser</button>
+      </div>` : ''}
+    </div>`).join('');
+}
+async function acceptRecruitment(id) { await fetch(`/api/${GUILD_ID}/recruitment/${id}/accept`, { method: 'POST' }); loadRecruitment('pending'); }
+async function denyRecruitment(id) { await fetch(`/api/${GUILD_ID}/recruitment/${id}/deny`, { method: 'POST' }); loadRecruitment('pending'); }
+
+async function loadEmployees() {
+  const res = await fetch(`/api/${GUILD_ID}/employees?status=active`);
+  const container = document.getElementById('employees-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
+  const employees = await res.json();
+  if (employees.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun employé actif.</p>'; return; }
+  container.innerHTML = employees.map(e => `
+    <div class="bg-slate-800 rounded-xl p-5 flex justify-between items-center">
+      <div>
+        <p class="font-bold">&lt;@${e.user_id}&gt;</p>
+        <p class="text-slate-400 text-sm">Embauché le ${new Date(e.hired_at).toLocaleDateString('fr-FR')}</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="sanctionEmployee('${e.user_id}')" class="text-sm bg-yellow-700 hover:bg-yellow-600 transition rounded-lg px-3 py-1">⚠️ Sanctionner</button>
+        <button onclick="fireEmployee('${e.user_id}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">🚪 Virer</button>
+      </div>
+    </div>`).join('');
+}
+async function sanctionEmployee(userId) {
+  const reason = prompt("Raison de la sanction :");
+  if (!reason) return;
+  await fetch(`/api/${GUILD_ID}/employees/${userId}/sanction`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason}) });
+  loadEmployees();
+}
+async function fireEmployee(userId) {
+  const reason = prompt("Raison du licenciement :");
+  if (!reason) return;
+  await fetch(`/api/${GUILD_ID}/employees/${userId}/fire`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason}) });
+  loadEmployees();
+}
+
+async function loadAnnounceChannels() {
+  const res = await fetch(`/api/${GUILD_ID}/channels`);
+  if (!res.ok) return;
+  const channels = await res.json();
+  document.getElementById('announce-channel').innerHTML = channels.map(c => `<option value="${c.id}">#${c.name}</option>`).join('');
+}
+document.getElementById('announce-mode').addEventListener('change', (e) => {
+  const isEmbed = e.target.value === 'embed';
+  document.getElementById('announce-title-wrap').style.display = isEmbed ? 'block' : 'none';
+  document.getElementById('announce-color-wrap').style.display = isEmbed ? 'block' : 'none';
+});
+document.getElementById('announce-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const body = Object.fromEntries(formData.entries());
+  body.mention_everyone = formData.has('mention_everyone');
+  const errorEl = document.getElementById('announce-error');
+  const sentEl = document.getElementById('announce-sent');
+  errorEl.classList.add('hidden'); sentEl.classList.add('hidden');
+  const res = await fetch(`/api/${GUILD_ID}/send_message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (res.ok) { sentEl.classList.remove('hidden'); e.target.reset(); setTimeout(() => sentEl.classList.add('hidden'), 3000); }
+  else { const err = await res.json(); errorEl.textContent = '⚠️ ' + (err.detail || 'Erreur.'); errorEl.classList.remove('hidden'); }
+});
+
+async function loadConfig() {
+  const [channelsRes, rolesRes, configRes] = await Promise.all([
+    fetch(`/api/${GUILD_ID}/channels`), fetch(`/api/${GUILD_ID}/roles`), fetch(`/api/${GUILD_ID}/config`),
+  ]);
+  const channels = await channelsRes.json();
+  const roles = await rolesRes.json();
+  const config = await configRes.json();
+  document.querySelectorAll('.channel-select').forEach(select => {
+    const current = config[select.name];
+    select.innerHTML = '<option value="">Aucun</option>' + channels.map(c => `<option value="${c.id}" ${c.id == current ? 'selected' : ''}>#${c.name}</option>`).join('');
+  });
+  document.querySelectorAll('.role-select').forEach(select => {
+    const current = config[select.name];
+    select.innerHTML = '<option value="">Aucun</option>' + roles.map(r => `<option value="${r.id}" ${r.id == current ? 'selected' : ''}>${r.name}</option>`).join('');
+  });
+}
+document.getElementById('config-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const body = Object.fromEntries(formData.entries());
+  await fetch(`/api/${GUILD_ID}/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const saved = document.getElementById('config-saved');
+  saved.classList.remove('hidden');
+  setTimeout(() => saved.classList.add('hidden'), 2000);
+  loadStats();
+});
+
+loadStats();
+</script>
+</body>
+</html>
