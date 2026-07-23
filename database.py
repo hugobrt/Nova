@@ -1,11 +1,6 @@
 """
 Connexion et accès à la base de données (Postgres, hébergée sur Aiven).
 Pool de connexions partagé par le bot ET l'API (même processus).
-
-Couvre : config serveur, offres d'emploi/candidatures, employés
-(embauche via acceptation de candidature, sanction, licenciement).
-Plus de "candidature spontanée" : tout passe par les offres d'emploi,
-publiables et gérables intégralement depuis le dashboard.
 """
 
 import os
@@ -86,6 +81,9 @@ CREATE TABLE IF NOT EXISTS server_config (
     application_log_channel_id BIGINT,
     employee_role_id BIGINT,
     hr_role_id BIGINT,
+    employee_portal_channel_id BIGINT,
+    hr_log_channel_id BIGINT,
+    tickets_category_id BIGINT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -127,15 +125,51 @@ CREATE TABLE IF NOT EXISTS employees (
     fired_by BIGINT,
     UNIQUE (guild_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS leave_requests (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    reason TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    reviewed_by BIGINT,
+    reviewed_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS incident_reports (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    incident_type TEXT NOT NULL,
+    line_info TEXT,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_by BIGINT,
+    resolved_at TIMESTAMPTZ,
+    resolution_note TEXT
+);
+
+CREATE TABLE IF NOT EXISTS tickets (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    subject TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    channel_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    closed_by BIGINT,
+    closed_at TIMESTAMPTZ
+);
 """
 
 MIGRATIONS_ALTER = [
-    "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS employee_role_id BIGINT",
-    "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS hr_role_id BIGINT",
-    "ALTER TABLE server_config DROP COLUMN IF EXISTS mod_log_channel_id",
-    "ALTER TABLE server_config DROP COLUMN IF EXISTS recruitment_channel_id",
-    "ALTER TABLE server_config DROP COLUMN IF EXISTS recruitment_log_channel_id",
-    "DROP TABLE IF EXISTS recruitment_applications",
+    "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS employee_portal_channel_id BIGINT",
+    "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS hr_log_channel_id BIGINT",
+    "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS tickets_category_id BIGINT",
 ]
 
 

@@ -44,6 +44,7 @@ INTENTS.message_content = True
 COGS = [
     "onboarding",
     "jobs",
+    "portal",
 ]
 
 
