@@ -65,6 +65,46 @@ def get_guild():
 
 
 # ---------------------------------------------------------------------
+# Sérialisation des IDs Discord (snowflakes) en chaînes de texte.
+# JavaScript perd en précision sur les grands entiers (>2^53), donc
+# tout ID Discord renvoyé par l'API DOIT être une string, jamais un int.
+# ---------------------------------------------------------------------
+
+CONFIG_ID_FIELDS = [
+    "rules_channel_id", "welcome_channel_id", "member_role_id",
+    "jobs_channel_id", "application_log_channel_id",
+    "employee_role_id", "hr_role_id",
+]
+
+
+def serialize_config(config: dict) -> dict:
+    out = dict(config)
+    for field in CONFIG_ID_FIELDS:
+        if out.get(field) is not None:
+            out[field] = str(out[field])
+    return out
+
+
+def serialize_job(job: dict) -> dict:
+    out = dict(job)
+    for field in ("id", "guild_id", "role_id", "posted_by", "channel_id", "message_id"):
+        if out.get(field) is not None:
+            out[field] = str(out[field])
+    out["applications"] = [
+        {**a, "user_id": str(a["user_id"])} for a in job.get("applications", [])
+    ]
+    return out
+
+
+def serialize_employee(emp: dict) -> dict:
+    out = dict(emp)
+    for field in ("id", "guild_id", "user_id", "role_id", "sanctioned_by", "fired_by"):
+        if out.get(field) is not None:
+            out[field] = str(out[field])
+    return out
+
+
+# ---------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------
 
@@ -178,7 +218,7 @@ async def guild_members(guild_id: int, limit: int = 100, user=Depends(require_ad
     members = list(guild.members)[:limit]
     return [
         {
-            "id": m.id,
+            "id": str(m.id),
             "name": str(m),
             "avatar": m.display_avatar.url,
             "roles": [r.name for r in m.roles if r.name != "@everyone"],
@@ -194,19 +234,19 @@ async def guild_members(guild_id: int, limit: int = 100, user=Depends(require_ad
 
 @app.get("/api/{guild_id}/config")
 async def read_config(guild_id: int, user=Depends(require_admin)):
-    return await get_guild_config(guild_id)
+    return serialize_config(await get_guild_config(guild_id))
 
 
 @app.get("/api/{guild_id}/channels")
 async def list_channels(guild_id: int, user=Depends(require_admin)):
     guild = get_guild()
-    return [{"id": c.id, "name": c.name, "type": str(c.type)} for c in guild.text_channels]
+    return [{"id": str(c.id), "name": c.name, "type": str(c.type)} for c in guild.text_channels]
 
 
 @app.get("/api/{guild_id}/roles")
 async def list_roles(guild_id: int, user=Depends(require_admin)):
     guild = get_guild()
-    return [{"id": r.id, "name": r.name} for r in guild.roles if r.name != "@everyone"]
+    return [{"id": str(r.id), "name": r.name} for r in guild.roles if r.name != "@everyone"]
 
 
 @app.post("/api/{guild_id}/config")
@@ -221,7 +261,7 @@ async def update_config(guild_id: int, request: Request, user=Depends(require_ad
     if not fields:
         raise HTTPException(status_code=400, detail="Aucun champ valide fourni.")
     await set_guild_config(guild_id, **fields)
-    return await get_guild_config(guild_id)
+    return serialize_config(await get_guild_config(guild_id))
 
 
 # ---------------------------------------------------------------------
@@ -250,7 +290,8 @@ def job_embed_dict(job: dict) -> discord.Embed:
 
 @app.get("/api/{guild_id}/jobs")
 async def api_list_jobs(guild_id: int, status: str = None, user=Depends(require_hr)):
-    return await list_jobs(guild_id, status=status)
+    jobs = await list_jobs(guild_id, status=status)
+    return [serialize_job(j) for j in jobs]
 
 
 @app.post("/api/{guild_id}/jobs")
@@ -289,7 +330,7 @@ async def api_create_job(guild_id: int, request: Request, user=Depends(require_h
     message = await channel.send(embed=job_embed_dict(job), view=view)
     await attach_message(job_id, channel.id, message.id)
 
-    return await get_job(job_id)
+    return serialize_job(await get_job(job_id))
 
 
 @app.get("/api/{guild_id}/jobs/{job_id}")
@@ -297,7 +338,7 @@ async def api_get_job(guild_id: int, job_id: int, user=Depends(require_hr)):
     job = await get_job(job_id)
     if job is None or job["guild_id"] != guild_id:
         raise HTTPException(status_code=404, detail="Offre introuvable.")
-    return job
+    return serialize_job(job)
 
 
 @app.post("/api/{guild_id}/jobs/{job_id}/close")
@@ -318,7 +359,7 @@ async def api_close_job(guild_id: int, job_id: int, user=Depends(require_hr)):
             except discord.NotFound:
                 pass
 
-    return await get_job(job_id)
+    return serialize_job(await get_job(job_id))
 
 
 # ---------------------------------------------------------------------
@@ -338,7 +379,8 @@ async def api_job_applications(guild_id: int, job_id: int, user=Depends(require_
         member = guild.get_member(a["user_id"])
         enriched.append({
             **a,
-            "job_id": job_id,
+            "user_id": str(a["user_id"]),
+            "job_id": str(job_id),
             "job_title": job["title"],
             "username": str(member) if member else f"Utilisateur {a['user_id']}",
             "avatar": member.display_avatar.url if member else None,
@@ -410,7 +452,7 @@ async def api_list_employees(guild_id: int, status: str = None, user=Depends(req
     for e in employees:
         member = guild.get_member(e["user_id"])
         enriched.append({
-            **e,
+            **serialize_employee(e),
             "username": str(member) if member else f"Utilisateur {e['user_id']}",
             "avatar": member.display_avatar.url if member else None,
         })

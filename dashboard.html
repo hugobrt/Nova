@@ -174,7 +174,7 @@
 </div>
 
 <script>
-const GUILD_ID = {{ guild_id }};
+const GUILD_ID = "{{ guild_id }}";
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -263,10 +263,10 @@ async function loadJobs() {
         <span class="text-xs px-2 py-1 rounded-full ${job.status === 'open' ? 'bg-green-700' : 'bg-slate-600'}">${job.status === 'open' ? 'Ouvert' : 'Clôturé'}</span>
       </div>
       <div class="mt-3 flex items-center gap-3">
-        <button onclick="openApplicationsPanel(${job.id}, '${job.title.replace(/'/g, "\\'")}')" class="text-sm bg-indigo-700 hover:bg-indigo-600 transition rounded-lg px-3 py-1">
+        <button onclick="openApplicationsPanel('${job.id}', '${job.title.replace(/'/g, "\\'")}')" class="text-sm bg-indigo-700 hover:bg-indigo-600 transition rounded-lg px-3 py-1">
           👥 ${job.applications.length} candidature(s)
         </button>
-        ${job.status === 'open' ? `<button onclick="closeJob(${job.id})" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">Clôturer</button>` : ''}
+        ${job.status === 'open' ? `<button onclick="closeJob('${job.id}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">Clôturer</button>` : ''}
       </div>
     </div>`).join('');
 }
@@ -302,8 +302,8 @@ async function openApplicationsPanel(jobId, jobTitle) {
       </div>
       ${a.status === 'pending' ? `
       <div class="mt-3 flex gap-2">
-        <button onclick="acceptApplication(${a.job_id}, ${a.user_id}, '${jobTitle.replace(/'/g, "\\'")}')" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">✅ Accepter</button>
-        <button onclick="denyApplication(${a.job_id}, ${a.user_id}, '${jobTitle.replace(/'/g, "\\'")}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">❌ Refuser</button>
+        <button onclick="acceptApplication('${a.job_id}', '${a.user_id}', '${jobTitle.replace(/'/g, "\\'")}')" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">✅ Accepter</button>
+        <button onclick="denyApplication('${a.job_id}', '${a.user_id}', '${jobTitle.replace(/'/g, "\\'")}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">❌ Refuser</button>
       </div>` : ''}
     </div>`).join('');
 }
