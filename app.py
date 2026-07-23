@@ -228,6 +228,17 @@ async def update_config(guild_id: int, request: Request, user=Depends(require_ad
 # API — offres d'emploi (création, liste, clôture — tout depuis le dashboard)
 # ---------------------------------------------------------------------
 
+
+async def resolve_channel(guild, channel_id: int):
+    """Cherche le salon en cache, sinon va le chercher directement via l'API Discord."""
+    channel = guild.get_channel(int(channel_id))
+    if channel is not None:
+        return channel
+    try:
+        return await guild.fetch_channel(int(channel_id))
+    except (discord.NotFound, discord.Forbidden):
+        return None
+
 def job_embed_dict(job: dict) -> discord.Embed:
     color = discord.Color.green() if job["status"] == "open" else discord.Color.greyple()
     embed = discord.Embed(title=f"🚌 {job['title']}", description=job["description"], color=color)
@@ -260,9 +271,14 @@ async def api_create_job(guild_id: int, request: Request, user=Depends(require_h
     guild = get_guild()
     config = await get_guild_config(guild_id)
     channel_id = config.get("jobs_channel_id")
-    channel = guild.get_channel(channel_id) if channel_id else None
-    if channel is None:
+    if not channel_id:
         raise HTTPException(status_code=400, detail="Aucun salon d'offres configuré (voir l'onglet Configuration).")
+    channel = await resolve_channel(guild, channel_id)
+    if channel is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Le salon configuré (ID {channel_id}) est introuvable ou inaccessible au bot. Vérifie qu'il existe toujours et que le bot y a accès."
+        )
 
     job_id = await create_job(guild_id, title, description, role_id, int(user["id"]))
     job = await get_job(job_id)
@@ -469,9 +485,9 @@ async def send_message(
     user=Depends(require_admin),
 ):
     guild = get_guild()
-    channel = guild.get_channel(int(channel_id))
+    channel = await resolve_channel(guild, channel_id)
     if channel is None:
-        raise HTTPException(status_code=404, detail="Salon introuvable.")
+        raise HTTPException(status_code=404, detail=f"Salon introuvable ou inaccessible (ID {channel_id}).")
 
     content = content.strip()
     if not content:
