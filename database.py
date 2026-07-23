@@ -2,8 +2,10 @@
 Connexion et accès à la base de données (Postgres, hébergée sur Aiven).
 Pool de connexions partagé par le bot ET l'API (même processus).
 
-Couvre : la config serveur, les offres d'emploi/candidatures, le recrutement
-spontané et la gestion des employés (sanctions / licenciements).
+Couvre : config serveur, offres d'emploi/candidatures, employés
+(embauche via acceptation de candidature, sanction, licenciement).
+Plus de "candidature spontanée" : tout passe par les offres d'emploi,
+publiables et gérables intégralement depuis le dashboard.
 """
 
 import os
@@ -82,8 +84,6 @@ CREATE TABLE IF NOT EXISTS server_config (
     member_role_id BIGINT,
     jobs_channel_id BIGINT,
     application_log_channel_id BIGINT,
-    recruitment_channel_id BIGINT,
-    recruitment_log_channel_id BIGINT,
     employee_role_id BIGINT,
     hr_role_id BIGINT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -112,19 +112,6 @@ CREATE TABLE IF NOT EXISTS job_applications (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS recruitment_applications (
-    id SERIAL PRIMARY KEY,
-    guild_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    poste_souhaite TEXT,
-    motivation TEXT,
-    disponibilite TEXT,
-    status TEXT NOT NULL DEFAULT 'pending',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    handled_by BIGINT,
-    handled_at TIMESTAMPTZ
-);
-
 CREATE TABLE IF NOT EXISTS employees (
     id SERIAL PRIMARY KEY,
     guild_id BIGINT NOT NULL,
@@ -143,11 +130,12 @@ CREATE TABLE IF NOT EXISTS employees (
 """
 
 MIGRATIONS_ALTER = [
-    "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS recruitment_channel_id BIGINT",
-    "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS recruitment_log_channel_id BIGINT",
     "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS employee_role_id BIGINT",
     "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS hr_role_id BIGINT",
     "ALTER TABLE server_config DROP COLUMN IF EXISTS mod_log_channel_id",
+    "ALTER TABLE server_config DROP COLUMN IF EXISTS recruitment_channel_id",
+    "ALTER TABLE server_config DROP COLUMN IF EXISTS recruitment_log_channel_id",
+    "DROP TABLE IF EXISTS recruitment_applications",
 ]
 
 

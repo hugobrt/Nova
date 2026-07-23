@@ -3,14 +3,14 @@ BOT ADMINISTRATIF - Serveur Discord boîte virtuelle de bus
 =============================================================
 Point d'entrée UNIQUE du service. Lance en parallèle, dans le
 même processus asyncio :
-1. Le bot Discord (discord.py)
-2. L'API + dashboard web (FastAPI, servi par uvicorn)
+1. Le bot Discord (discord.py) — ne gère plus que l'accueil et le
+   bouton "Postuler" des offres d'emploi.
+2. L'API + dashboard web (FastAPI) — pilote absolument tout le reste :
+   création/gestion des offres, candidatures, embauches, sanctions,
+   licenciements, annonces avec image, configuration.
 
-Config serveur, offres d'emploi, recrutement spontané et employés
-en Postgres (Aiven), via database.py.
-
-Un seul service Render (Web Service), un seul processus.
-La modération est déléguée à DraftBot, plus de cog moderation ici.
+Postgres (Aiven) via database.py. Un seul service Render (Web Service).
+La modération est déléguée à DraftBot.
 """
 
 import os
@@ -44,7 +44,6 @@ INTENTS.message_content = True
 COGS = [
     "onboarding",
     "jobs",
-    "recruitment",
 ]
 
 

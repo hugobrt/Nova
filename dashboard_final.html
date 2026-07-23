@@ -24,6 +24,7 @@
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-indigo-500 text-white" data-tab="stats">Statistiques</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="members">Membres</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="jobs">Offres d'emploi</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="recruitment">Recrutement</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="employees">Employés</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="announce">Annonces</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="config">Configuration</button>
@@ -50,41 +51,17 @@
   </div>
 
   <!-- OFFRES D'EMPLOI -->
-  <div id="tab-jobs" class="tab-content hidden space-y-6">
-
-    <div class="bg-slate-800 rounded-xl p-6">
-      <h3 class="font-bold text-lg mb-4">📝 Publier une nouvelle offre</h3>
-      <form id="job-form" class="space-y-4 max-w-2xl">
-        <div>
-          <label class="block text-sm text-slate-400 mb-1">Titre du poste</label>
-          <input type="text" name="title" required maxlength="100" class="w-full bg-slate-700 rounded-lg px-3 py-2" placeholder="Ex : Chauffeur de bus ligne A">
-        </div>
-        <div>
-          <label class="block text-sm text-slate-400 mb-1">Description</label>
-          <textarea name="description" rows="4" required class="w-full bg-slate-700 rounded-lg px-3 py-2" placeholder="Description du poste et des attentes..."></textarea>
-        </div>
-        <div>
-          <label class="block text-sm text-slate-400 mb-1">Rôle attribué si accepté (optionnel)</label>
-          <select name="role_id" id="job-role-select" class="role-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
-        </div>
-        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 transition rounded-lg px-6 py-2 font-semibold">Publier l'offre</button>
-        <span id="job-created" class="ml-3 text-green-400 hidden">✅ Offre publiée</span>
-        <span id="job-error" class="ml-3 text-red-400 hidden"></span>
-      </form>
-    </div>
-
+  <div id="tab-jobs" class="tab-content hidden space-y-4">
     <div id="jobs-list" class="grid gap-4"></div>
   </div>
 
-  <!-- FICHE CANDIDATURES D'UNE OFFRE -->
-  <div id="job-applications-panel" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-    <div class="bg-slate-800 rounded-xl max-w-3xl w-full max-h-[85vh] overflow-y-auto p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="font-bold text-lg" id="job-applications-title">Candidatures</h3>
-        <button onclick="closeApplicationsPanel()" class="text-slate-400 hover:text-white text-xl">✕</button>
-      </div>
-      <div id="job-applications-list" class="space-y-4"></div>
+  <!-- RECRUTEMENT SPONTANÉ -->
+  <div id="tab-recruitment" class="tab-content hidden space-y-4">
+    <div class="flex gap-2 mb-2">
+      <button class="rec-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="pending">En attente</button>
+      <button class="rec-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Toutes</button>
     </div>
+    <div id="recruitment-list" class="grid gap-4"></div>
   </div>
 
   <!-- EMPLOYÉS -->
@@ -94,7 +71,7 @@
 
   <!-- ANNONCES -->
   <div id="tab-announce" class="tab-content hidden">
-    <form id="announce-form" class="bg-slate-800 rounded-xl p-6 space-y-5 max-w-2xl" enctype="multipart/form-data">
+    <form id="announce-form" class="bg-slate-800 rounded-xl p-6 space-y-5 max-w-2xl">
       <div>
         <label class="block text-sm text-slate-400 mb-1">Salon de destination</label>
         <select name="channel_id" id="announce-channel" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
@@ -124,10 +101,6 @@
           <option value="gold">Or</option>
           <option value="greyple">Gris</option>
         </select>
-      </div>
-      <div>
-        <label class="block text-sm text-slate-400 mb-1">Image jointe (optionnel)</label>
-        <input type="file" name="image" accept="image/*" class="w-full bg-slate-700 rounded-lg px-3 py-2">
       </div>
       <label class="flex items-center gap-2 text-sm text-slate-300">
         <input type="checkbox" name="mention_everyone" class="rounded">
@@ -159,11 +132,23 @@
         <select name="jobs_channel_id" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
       </div>
       <div>
+        <label class="block text-sm text-slate-400 mb-1">Salon de suivi des candidatures (offres)</label>
+        <select name="application_log_channel_id" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Salon de recrutement (bouton candidature spontanée)</label>
+        <select name="recruitment_channel_id" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Salon de suivi RH (candidatures spontanées)</label>
+        <select name="recruitment_log_channel_id" class="channel-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
         <label class="block text-sm text-slate-400 mb-1">Rôle employé (attribué à l'embauche)</label>
         <select name="employee_role_id" class="role-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
       </div>
       <div>
-        <label class="block text-sm text-slate-400 mb-1">Rôle RH (peut gérer offres/employés sans être admin)</label>
+        <label class="block text-sm text-slate-400 mb-1">Rôle RH (peut gérer offres/recrutement/employés sans être admin)</label>
         <select name="hr_role_id" class="role-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
       </div>
       <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 transition rounded-lg px-6 py-2 font-semibold">Enregistrer</button>
@@ -187,7 +172,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
     document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
     if (btn.dataset.tab === 'members') loadMembers();
-    if (btn.dataset.tab === 'jobs') { loadJobs(); loadJobRoleSelect(); }
+    if (btn.dataset.tab === 'jobs') loadJobs();
+    if (btn.dataset.tab === 'recruitment') loadRecruitment('pending');
     if (btn.dataset.tab === 'employees') loadEmployees();
     if (btn.dataset.tab === 'config') loadConfig();
     if (btn.dataset.tab === 'announce') loadAnnounceChannels();
@@ -217,41 +203,11 @@ async function loadMembers() {
     </tr>`).join('');
 }
 
-// --- Offres d'emploi ---
-async function loadJobRoleSelect() {
-  const res = await fetch(`/api/${GUILD_ID}/roles`);
-  if (!res.ok) return;
-  const roles = await res.json();
-  document.getElementById('job-role-select').innerHTML =
-    '<option value="">Aucun rôle</option>' + roles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-}
-
-document.getElementById('job-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const formData = new FormData(e.target);
-  const body = Object.fromEntries(formData.entries());
-  const errorEl = document.getElementById('job-error');
-  const createdEl = document.getElementById('job-created');
-  errorEl.classList.add('hidden'); createdEl.classList.add('hidden');
-  const res = await fetch(`/api/${GUILD_ID}/jobs`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  });
-  if (res.ok) {
-    createdEl.classList.remove('hidden'); e.target.reset();
-    setTimeout(() => createdEl.classList.add('hidden'), 3000);
-    loadJobs();
-  } else {
-    const err = await res.json();
-    errorEl.textContent = '⚠️ ' + (err.detail || 'Erreur.');
-    errorEl.classList.remove('hidden');
-  }
-});
-
 async function loadJobs() {
   const res = await fetch(`/api/${GUILD_ID}/jobs`);
-  const container = document.getElementById('jobs-list');
-  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
+  if (!res.ok) { document.getElementById('jobs-list').innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
   const jobs = await res.json();
+  const container = document.getElementById('jobs-list');
   if (jobs.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune offre publiée pour l\'instant.</p>'; return; }
   container.innerHTML = jobs.map(job => `
     <div class="bg-slate-800 rounded-xl p-5">
@@ -262,12 +218,10 @@ async function loadJobs() {
         </div>
         <span class="text-xs px-2 py-1 rounded-full ${job.status === 'open' ? 'bg-green-700' : 'bg-slate-600'}">${job.status === 'open' ? 'Ouvert' : 'Clôturé'}</span>
       </div>
-      <div class="mt-3 flex items-center gap-3">
-        <button onclick="openApplicationsPanel(${job.id}, '${job.title.replace(/'/g, "\\'")}')" class="text-sm bg-indigo-700 hover:bg-indigo-600 transition rounded-lg px-3 py-1">
-          👥 ${job.applications.length} candidature(s)
-        </button>
-        ${job.status === 'open' ? `<button onclick="closeJob(${job.id})" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">Clôturer</button>` : ''}
+      <div class="mt-3 text-sm text-slate-300">${job.applications.length} candidature(s)
+        ${job.applications.length ? `<ul class="mt-2 space-y-1">${job.applications.map(a => `<li class="text-slate-400">${a.user_id} — <span class="${a.status === 'accepted' ? 'text-green-400' : a.status === 'refused' ? 'text-red-400' : 'text-yellow-400'}">${a.status}</span></li>`).join('')}</ul>` : ''}
       </div>
+      ${job.status === 'open' ? `<button onclick="closeJob(${job.id})" class="mt-3 text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">Clôturer</button>` : ''}
     </div>`).join('');
 }
 async function closeJob(jobId) {
@@ -275,53 +229,42 @@ async function closeJob(jobId) {
   loadJobs();
 }
 
-// --- Fiche candidatures (panel modal) ---
-async function openApplicationsPanel(jobId, jobTitle) {
-  document.getElementById('job-applications-title').textContent = `Candidatures — ${jobTitle}`;
-  document.getElementById('job-applications-panel').classList.remove('hidden');
-  const res = await fetch(`/api/${GUILD_ID}/jobs/${jobId}/applications`);
-  const list = document.getElementById('job-applications-list');
-  if (!res.ok) { list.innerHTML = '<p class="text-red-400">Accès refusé.</p>'; return; }
+document.querySelectorAll('.rec-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.rec-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
+    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    loadRecruitment(btn.dataset.status);
+  });
+});
+
+async function loadRecruitment(status) {
+  const url = status ? `/api/${GUILD_ID}/recruitment?status=${status}` : `/api/${GUILD_ID}/recruitment`;
+  const res = await fetch(url);
+  const container = document.getElementById('recruitment-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
   const apps = await res.json();
-  if (apps.length === 0) { list.innerHTML = '<p class="text-slate-400">Aucune candidature pour cette offre.</p>'; return; }
-  list.innerHTML = apps.map(a => `
-    <div class="bg-slate-700 rounded-xl p-4">
-      <div class="flex items-start gap-3">
-        ${a.avatar ? `<img src="${a.avatar}" class="w-12 h-12 rounded-full">` : '<div class="w-12 h-12 rounded-full bg-slate-600"></div>'}
-        <div class="flex-1">
-          <p class="font-bold">${a.username} ${!a.in_guild ? '<span class="text-xs text-red-400">(a quitté le serveur)</span>' : ''}</p>
-          <p class="text-xs text-slate-400">Compte créé le ${a.account_created_at ? new Date(a.account_created_at).toLocaleDateString('fr-FR') : '-'}</p>
-          <p class="text-xs text-slate-400">Arrivé sur le serveur le ${a.joined_at ? new Date(a.joined_at).toLocaleDateString('fr-FR') : '-'}</p>
-          <p class="text-xs text-slate-400 mt-1">Rôles actuels : ${a.roles.length ? a.roles.join(', ') : 'Aucun'}</p>
+  if (apps.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune candidature.</p>'; return; }
+  container.innerHTML = apps.map(a => `
+    <div class="bg-slate-800 rounded-xl p-5">
+      <div class="flex justify-between items-start">
+        <div>
+          <h3 class="font-bold text-lg">Candidat &lt;@${a.user_id}&gt; <span class="text-sm font-normal text-slate-400">#${a.id}</span></h3>
+          <p class="text-slate-400 text-sm mt-1">Poste : ${a.poste_souhaite || '-'}</p>
+          <p class="text-slate-300 text-sm mt-2">${a.motivation || ''}</p>
+          <p class="text-slate-500 text-xs mt-1">Dispo : ${a.disponibilite || '-'}</p>
         </div>
         <span class="text-xs px-2 py-1 rounded-full ${a.status === 'accepted' ? 'bg-green-700' : a.status === 'refused' ? 'bg-red-700' : 'bg-yellow-700'}">${a.status}</span>
       </div>
-      <div class="mt-3 text-sm">
-        <p class="text-slate-300"><span class="text-slate-500">Motivation :</span> ${a.motivation || '-'}</p>
-        <p class="text-slate-300 mt-1"><span class="text-slate-500">Disponibilités :</span> ${a.disponibilite || '-'}</p>
-      </div>
       ${a.status === 'pending' ? `
       <div class="mt-3 flex gap-2">
-        <button onclick="acceptApplication(${a.job_id}, ${a.user_id}, '${jobTitle.replace(/'/g, "\\'")}')" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">✅ Accepter</button>
-        <button onclick="denyApplication(${a.job_id}, ${a.user_id}, '${jobTitle.replace(/'/g, "\\'")}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">❌ Refuser</button>
+        <button onclick="acceptRecruitment(${a.id})" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">✅ Accepter</button>
+        <button onclick="denyRecruitment(${a.id})" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">❌ Refuser</button>
       </div>` : ''}
     </div>`).join('');
 }
-function closeApplicationsPanel() {
-  document.getElementById('job-applications-panel').classList.add('hidden');
-}
-async function acceptApplication(jobId, userId, jobTitle) {
-  await fetch(`/api/${GUILD_ID}/jobs/${jobId}/applications/${userId}/accept`, { method: 'POST' });
-  openApplicationsPanel(jobId, jobTitle);
-  loadJobs();
-}
-async function denyApplication(jobId, userId, jobTitle) {
-  await fetch(`/api/${GUILD_ID}/jobs/${jobId}/applications/${userId}/deny`, { method: 'POST' });
-  openApplicationsPanel(jobId, jobTitle);
-  loadJobs();
-}
+async function acceptRecruitment(id) { await fetch(`/api/${GUILD_ID}/recruitment/${id}/accept`, { method: 'POST' }); loadRecruitment('pending'); }
+async function denyRecruitment(id) { await fetch(`/api/${GUILD_ID}/recruitment/${id}/deny`, { method: 'POST' }); loadRecruitment('pending'); }
 
-// --- Employés ---
 async function loadEmployees() {
   const res = await fetch(`/api/${GUILD_ID}/employees?status=active`);
   const container = document.getElementById('employees-list');
@@ -330,12 +273,9 @@ async function loadEmployees() {
   if (employees.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun employé actif.</p>'; return; }
   container.innerHTML = employees.map(e => `
     <div class="bg-slate-800 rounded-xl p-5 flex justify-between items-center">
-      <div class="flex items-center gap-3">
-        ${e.avatar ? `<img src="${e.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
-        <div>
-          <p class="font-bold">${e.username}</p>
-          <p class="text-slate-400 text-sm">Embauché le ${new Date(e.hired_at).toLocaleDateString('fr-FR')}</p>
-        </div>
+      <div>
+        <p class="font-bold">&lt;@${e.user_id}&gt;</p>
+        <p class="text-slate-400 text-sm">Embauché le ${new Date(e.hired_at).toLocaleDateString('fr-FR')}</p>
       </div>
       <div class="flex gap-2">
         <button onclick="sanctionEmployee('${e.user_id}')" class="text-sm bg-yellow-700 hover:bg-yellow-600 transition rounded-lg px-3 py-1">⚠️ Sanctionner</button>
@@ -356,7 +296,6 @@ async function fireEmployee(userId) {
   loadEmployees();
 }
 
-// --- Annonces ---
 async function loadAnnounceChannels() {
   const res = await fetch(`/api/${GUILD_ID}/channels`);
   if (!res.ok) return;
@@ -371,16 +310,16 @@ document.getElementById('announce-mode').addEventListener('change', (e) => {
 document.getElementById('announce-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const formData = new FormData(e.target);
-  formData.set('mention_everyone', e.target.mention_everyone.checked ? 'true' : 'false');
+  const body = Object.fromEntries(formData.entries());
+  body.mention_everyone = formData.has('mention_everyone');
   const errorEl = document.getElementById('announce-error');
   const sentEl = document.getElementById('announce-sent');
   errorEl.classList.add('hidden'); sentEl.classList.add('hidden');
-  const res = await fetch(`/api/${GUILD_ID}/send_message`, { method: 'POST', body: formData });
+  const res = await fetch(`/api/${GUILD_ID}/send_message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (res.ok) { sentEl.classList.remove('hidden'); e.target.reset(); setTimeout(() => sentEl.classList.add('hidden'), 3000); }
   else { const err = await res.json(); errorEl.textContent = '⚠️ ' + (err.detail || 'Erreur.'); errorEl.classList.remove('hidden'); }
 });
 
-// --- Configuration ---
 async function loadConfig() {
   const [channelsRes, rolesRes, configRes] = await Promise.all([
     fetch(`/api/${GUILD_ID}/channels`), fetch(`/api/${GUILD_ID}/roles`), fetch(`/api/${GUILD_ID}/config`),

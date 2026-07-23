@@ -1,17 +1,18 @@
 """
-API + Dashboard — FastAPI, sans BDD pour la config live (config JSON en base,
-jobs/recrutement/employés en Postgres, cache discord.py du bot en direct).
+API + Dashboard — FastAPI. Toute la gestion du bot (offres d'emploi,
+candidatures, embauches, sanctions/licenciements, annonces avec image)
+se pilote depuis le dashboard web. Le bot Discord ne fait plus que
+publier les messages/embeds et gérer le bouton "Postuler".
 
-Accès protégé par connexion Discord OAuth2. Deux niveaux :
-- Admin / Gérer le serveur : accès complet au dashboard.
-- Rôle RH configuré (hr_role_id) : accès aux offres, recrutement, employés
-  (accepter/refuser candidatures, sanctionner, virer) sans être admin.
+Accès protégé par connexion Discord OAuth2 :
+- Admin / Gérer le serveur : accès complet.
+- Rôle RH configuré (hr_role_id) : accès aux offres, candidatures, employés.
 """
 
 import os
 import logging
 
-from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi import FastAPI, HTTPException, Request, Depends, Form, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,11 +22,10 @@ from starlette.middleware.sessions import SessionMiddleware
 import discord
 
 from config_store import get_guild_config, set_guild_config
-from jobs_store import list_jobs, get_job, close_job
-from recruitment_store import (
-    list_recruitment_applications, get_recruitment_application, set_recruitment_status,
-    hire_employee, list_employees, sanction_employee, fire_employee,
+from jobs_store import (
+    create_job, attach_message, get_job, list_jobs, close_job, set_application_status,
 )
+from employees_store import hire_employee, list_employees, sanction_employee, fire_employee
 import oauth
 
 logger = logging.getLogger("API")
@@ -76,8 +76,6 @@ def require_admin(request: Request):
 
 
 async def require_hr(request: Request):
-    """Autorise les admins/Gérer le serveur (déjà filtrés à la connexion) OU
-    les membres ayant le rôle RH configuré (hr_role_id) sur le serveur live."""
     user = require_admin(request)
     guild = get_guild()
     member = guild.get_member(int(user["id"]))
@@ -182,6 +180,7 @@ async def guild_members(guild_id: int, limit: int = 100, user=Depends(require_ad
         {
             "id": m.id,
             "name": str(m),
+            "avatar": m.display_avatar.url,
             "roles": [r.name for r in m.roles if r.name != "@everyone"],
             "joined_at": m.joined_at.isoformat() if m.joined_at else None,
         }
@@ -216,7 +215,6 @@ async def update_config(guild_id: int, request: Request, user=Depends(require_ad
     allowed_fields = {
         "rules_channel_id", "welcome_channel_id", "member_role_id",
         "jobs_channel_id", "application_log_channel_id",
-        "recruitment_channel_id", "recruitment_log_channel_id",
         "employee_role_id", "hr_role_id",
     }
     fields = {k: int(v) for k, v in body.items() if k in allowed_fields and v}
@@ -227,12 +225,55 @@ async def update_config(guild_id: int, request: Request, user=Depends(require_ad
 
 
 # ---------------------------------------------------------------------
-# API — offres d'emploi
+# API — offres d'emploi (création, liste, clôture — tout depuis le dashboard)
 # ---------------------------------------------------------------------
+
+def job_embed_dict(job: dict) -> discord.Embed:
+    color = discord.Color.green() if job["status"] == "open" else discord.Color.greyple()
+    embed = discord.Embed(title=f"🚌 {job['title']}", description=job["description"], color=color)
+    embed.add_field(name="Statut", value="🟢 Ouvert" if job["status"] == "open" else "🔴 Clôturé", inline=True)
+    embed.add_field(name="Candidatures", value=str(len(job["applications"])), inline=True)
+    embed.set_footer(text=f"Offre #{job['id']}")
+    return embed
+
 
 @app.get("/api/{guild_id}/jobs")
 async def api_list_jobs(guild_id: int, status: str = None, user=Depends(require_hr)):
     return await list_jobs(guild_id, status=status)
+
+
+@app.post("/api/{guild_id}/jobs")
+async def api_create_job(guild_id: int, request: Request, user=Depends(require_hr)):
+    """
+    Body JSON : { "title": "...", "description": "...", "role_id": "123" (optionnel) }
+    Publie automatiquement l'offre dans le salon configuré (jobs_channel_id).
+    """
+    body = await request.json()
+    title = (body.get("title") or "").strip()
+    description = (body.get("description") or "").strip()
+    role_id = body.get("role_id")
+    role_id = int(role_id) if role_id else None
+
+    if not title or not description:
+        raise HTTPException(status_code=400, detail="Titre et description requis.")
+
+    guild = get_guild()
+    config = await get_guild_config(guild_id)
+    channel_id = config.get("jobs_channel_id")
+    channel = guild.get_channel(channel_id) if channel_id else None
+    if channel is None:
+        raise HTTPException(status_code=400, detail="Aucun salon d'offres configuré (voir l'onglet Configuration).")
+
+    job_id = await create_job(guild_id, title, description, role_id, int(user["id"]))
+    job = await get_job(job_id)
+
+    from jobs import JobApplyButton  # import tardif pour éviter les cycles
+    view = discord.ui.View(timeout=None)
+    view.add_item(JobApplyButton(job_id))
+    message = await channel.send(embed=job_embed_dict(job), view=view)
+    await attach_message(job_id, channel.id, message.id)
+
+    return await get_job(job_id)
 
 
 @app.get("/api/{guild_id}/jobs/{job_id}")
@@ -249,64 +290,96 @@ async def api_close_job(guild_id: int, job_id: int, user=Depends(require_hr)):
     if job is None or job["guild_id"] != guild_id:
         raise HTTPException(status_code=404, detail="Offre introuvable.")
     await close_job(job_id)
+
+    if job["channel_id"] and job["message_id"]:
+        guild = get_guild()
+        channel = guild.get_channel(job["channel_id"])
+        if channel:
+            try:
+                message = await channel.fetch_message(job["message_id"])
+                updated = await get_job(job_id)
+                await message.edit(embed=job_embed_dict(updated), view=None)
+            except discord.NotFound:
+                pass
+
     return await get_job(job_id)
 
 
 # ---------------------------------------------------------------------
-# API — recrutement spontané (accepter / refuser depuis le dashboard)
+# API — candidatures (fiche complète du candidat + accepter/refuser)
 # ---------------------------------------------------------------------
 
-@app.get("/api/{guild_id}/recruitment")
-async def api_list_recruitment(guild_id: int, status: str = None, user=Depends(require_hr)):
-    return await list_recruitment_applications(guild_id, status=status)
+@app.get("/api/{guild_id}/jobs/{job_id}/applications")
+async def api_job_applications(guild_id: int, job_id: int, user=Depends(require_hr)):
+    """Renvoie chaque candidature enrichie avec le profil Discord complet du candidat."""
+    job = await get_job(job_id)
+    if job is None or job["guild_id"] != guild_id:
+        raise HTTPException(status_code=404, detail="Offre introuvable.")
+
+    guild = get_guild()
+    enriched = []
+    for a in job["applications"]:
+        member = guild.get_member(a["user_id"])
+        enriched.append({
+            **a,
+            "job_id": job_id,
+            "job_title": job["title"],
+            "username": str(member) if member else f"Utilisateur {a['user_id']}",
+            "avatar": member.display_avatar.url if member else None,
+            "account_created_at": member.created_at.isoformat() if member else None,
+            "joined_at": member.joined_at.isoformat() if member and member.joined_at else None,
+            "roles": [r.name for r in member.roles if r.name != "@everyone"] if member else [],
+            "in_guild": member is not None,
+        })
+    return enriched
 
 
-async def _dm_and_maybe_role(guild, application: dict, accept: bool, hr_user_id: int):
-    member = guild.get_member(application["user_id"])
-    if accept:
-        config = await get_guild_config(guild.id)
-        role_id = config.get("employee_role_id")
-        if member and role_id:
-            role = guild.get_role(role_id)
-            if role:
-                try:
-                    await member.add_roles(role, reason="Candidature spontanée acceptée (dashboard)")
-                except discord.Forbidden:
-                    pass
-        await hire_employee(guild.id, application["user_id"], role_id)
-        if member:
+@app.post("/api/{guild_id}/jobs/{job_id}/applications/{user_id}/accept")
+async def api_accept_application(guild_id: int, job_id: int, user_id: int, user=Depends(require_hr)):
+    job = await get_job(job_id)
+    if job is None or job["guild_id"] != guild_id:
+        raise HTTPException(status_code=404, detail="Offre introuvable.")
+
+    guild = get_guild()
+    member = guild.get_member(user_id)
+
+    if job.get("role_id") and member:
+        role = guild.get_role(job["role_id"])
+        if role:
             try:
-                await member.send(f"🎉 Ta candidature a été **acceptée** sur **{guild.name}** ! Bienvenue dans l'équipe.")
+                await member.add_roles(role, reason=f"Candidature acceptée — {job['title']}")
             except discord.Forbidden:
                 pass
-    else:
-        if member:
-            try:
-                await member.send(f"❌ Ta candidature sur **{guild.name}** n'a pas été retenue.")
-            except discord.Forbidden:
-                pass
+
+    await set_application_status(job_id, user_id, "accepted")
+    await hire_employee(guild_id, user_id, job.get("role_id"))
+
+    if member:
+        try:
+            await member.send(f"🎉 Ta candidature pour **{job['title']}** a été **acceptée** sur **{guild.name}** !")
+        except discord.Forbidden:
+            pass
+
+    return {"status": "ok"}
 
 
-@app.post("/api/{guild_id}/recruitment/{app_id}/accept")
-async def api_accept_recruitment(guild_id: int, app_id: int, user=Depends(require_hr)):
-    application = await get_recruitment_application(app_id)
-    if application is None or application["guild_id"] != guild_id:
-        raise HTTPException(status_code=404, detail="Candidature introuvable.")
+@app.post("/api/{guild_id}/jobs/{job_id}/applications/{user_id}/deny")
+async def api_deny_application(guild_id: int, job_id: int, user_id: int, user=Depends(require_hr)):
+    job = await get_job(job_id)
+    if job is None or job["guild_id"] != guild_id:
+        raise HTTPException(status_code=404, detail="Offre introuvable.")
+
+    await set_application_status(job_id, user_id, "refused")
+
     guild = get_guild()
-    await _dm_and_maybe_role(guild, application, accept=True, hr_user_id=int(user["id"]))
-    await set_recruitment_status(app_id, "accepted", int(user["id"]))
-    return await get_recruitment_application(app_id)
+    member = guild.get_member(user_id)
+    if member:
+        try:
+            await member.send(f"❌ Ta candidature pour **{job['title']}** n'a pas été retenue sur **{guild.name}**.")
+        except discord.Forbidden:
+            pass
 
-
-@app.post("/api/{guild_id}/recruitment/{app_id}/deny")
-async def api_deny_recruitment(guild_id: int, app_id: int, user=Depends(require_hr)):
-    application = await get_recruitment_application(app_id)
-    if application is None or application["guild_id"] != guild_id:
-        raise HTTPException(status_code=404, detail="Candidature introuvable.")
-    guild = get_guild()
-    await _dm_and_maybe_role(guild, application, accept=False, hr_user_id=int(user["id"]))
-    await set_recruitment_status(app_id, "refused", int(user["id"]))
-    return await get_recruitment_application(app_id)
+    return {"status": "ok"}
 
 
 # ---------------------------------------------------------------------
@@ -315,7 +388,17 @@ async def api_deny_recruitment(guild_id: int, app_id: int, user=Depends(require_
 
 @app.get("/api/{guild_id}/employees")
 async def api_list_employees(guild_id: int, status: str = None, user=Depends(require_hr)):
-    return await list_employees(guild_id, status=status)
+    employees = await list_employees(guild_id, status=status)
+    guild = get_guild()
+    enriched = []
+    for e in employees:
+        member = guild.get_member(e["user_id"])
+        enriched.append({
+            **e,
+            "username": str(member) if member else f"Utilisateur {e['user_id']}",
+            "avatar": member.display_avatar.url if member else None,
+        })
+    return enriched
 
 
 @app.post("/api/{guild_id}/employees/{user_id}/sanction")
@@ -360,7 +443,7 @@ async def api_fire_employee(guild_id: int, user_id: int, request: Request, user=
 
 
 # ---------------------------------------------------------------------
-# API — messages personnalisés
+# API — messages personnalisés / annonces (avec image en pièce jointe)
 # ---------------------------------------------------------------------
 
 COLOR_MAP = {
@@ -374,38 +457,52 @@ COLOR_MAP = {
 
 
 @app.post("/api/{guild_id}/send_message")
-async def send_message(guild_id: int, request: Request, user=Depends(require_admin)):
-    body = await request.json()
-    channel_id = body.get("channel_id")
-    mode = body.get("mode", "embed")
-    content = (body.get("content") or "").strip()
-    title = (body.get("title") or "").strip()
-    color_key = body.get("color", "blurple")
-    mention_everyone = bool(body.get("mention_everyone", False))
-
-    if not channel_id:
-        raise HTTPException(status_code=400, detail="channel_id manquant.")
-    if not content:
-        raise HTTPException(status_code=400, detail="Le contenu du message est vide.")
-
+async def send_message(
+    guild_id: int,
+    channel_id: str = Form(...),
+    mode: str = Form("embed"),
+    title: str = Form(""),
+    content: str = Form(...),
+    color: str = Form("blurple"),
+    mention_everyone: bool = Form(False),
+    image: UploadFile | None = File(None),
+    user=Depends(require_admin),
+):
     guild = get_guild()
     channel = guild.get_channel(int(channel_id))
     if channel is None:
         raise HTTPException(status_code=404, detail="Salon introuvable.")
 
+    content = content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Le contenu du message est vide.")
+
     prefix = "@everyone " if mention_everyone else ""
+    file_obj = None
+    if image is not None and image.filename:
+        image_bytes = await image.read()
+        file_obj = discord.File(fp=__import__("io").BytesIO(image_bytes), filename=image.filename)
 
     try:
         if mode == "plain":
-            await channel.send(content=f"{prefix}{content}"[:2000])
+            await channel.send(
+                content=f"{prefix}{content}"[:2000],
+                file=file_obj if file_obj else None,
+            )
         else:
             embed = discord.Embed(
-                title=title or None,
+                title=title.strip() or None,
                 description=content[:4000],
-                color=COLOR_MAP.get(color_key, discord.Color.blurple()),
+                color=COLOR_MAP.get(color, discord.Color.blurple()),
             )
             embed.set_footer(text=f"Message envoyé par {user['username']} via le dashboard")
-            await channel.send(content=prefix if mention_everyone else None, embed=embed)
+            if file_obj:
+                embed.set_image(url=f"attachment://{file_obj.filename}")
+            await channel.send(
+                content=prefix if mention_everyone else None,
+                embed=embed,
+                file=file_obj if file_obj else None,
+            )
     except discord.Forbidden:
         raise HTTPException(status_code=403, detail="Le bot n'a pas la permission d'écrire dans ce salon.")
 
