@@ -26,6 +26,11 @@ from jobs_store import (
     create_job, attach_message, get_job, list_jobs, close_job, set_application_status,
 )
 from employees_store import hire_employee, list_employees, sanction_employee, fire_employee
+from requests_store import (
+    list_leave_requests, get_leave_request, set_leave_status,
+    list_incident_reports, get_incident_report, resolve_incident, dismiss_incident,
+    list_tickets, get_ticket, close_ticket,
+)
 import oauth
 
 logger = logging.getLogger("API")
@@ -74,6 +79,7 @@ CONFIG_ID_FIELDS = [
     "rules_channel_id", "welcome_channel_id", "member_role_id",
     "jobs_channel_id", "application_log_channel_id",
     "employee_role_id", "hr_role_id",
+    "employee_portal_channel_id", "hr_log_channel_id", "tickets_category_id",
 ]
 
 
@@ -256,6 +262,7 @@ async def update_config(guild_id: int, request: Request, user=Depends(require_ad
         "rules_channel_id", "welcome_channel_id", "member_role_id",
         "jobs_channel_id", "application_log_channel_id",
         "employee_role_id", "hr_role_id",
+        "employee_portal_channel_id", "hr_log_channel_id", "tickets_category_id",
     }
     fields = {k: int(v) for k, v in body.items() if k in allowed_fields and v}
     if not fields:
@@ -497,6 +504,181 @@ async def api_fire_employee(guild_id: int, user_id: int, request: Request, user=
             await member.send(f"🚪 Tu as été licencié de **{guild.name}** : {reason}")
         except discord.Forbidden:
             pass
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------
+# API — catégories (pour la config des tickets)
+# ---------------------------------------------------------------------
+
+@app.get("/api/{guild_id}/categories")
+async def list_categories(guild_id: int, user=Depends(require_admin)):
+    guild = get_guild()
+    return [{"id": str(c.id), "name": c.name} for c in guild.categories]
+
+
+# ---------------------------------------------------------------------
+# API — congés / absences
+# ---------------------------------------------------------------------
+
+def serialize_leave(leave: dict) -> dict:
+    out = dict(leave)
+    out["id"] = str(out["id"])
+    out["user_id"] = str(out["user_id"])
+    out["guild_id"] = str(out["guild_id"])
+    if out.get("reviewed_by") is not None:
+        out["reviewed_by"] = str(out["reviewed_by"])
+    return out
+
+
+@app.get("/api/{guild_id}/leave_requests")
+async def api_list_leave_requests(guild_id: int, status: str = None, user=Depends(require_hr)):
+    requests_ = await list_leave_requests(guild_id, status=status)
+    guild = get_guild()
+    enriched = []
+    for r in requests_:
+        member = guild.get_member(r["user_id"])
+        enriched.append({
+            **serialize_leave(r),
+            "username": str(member) if member else f"Utilisateur {r['user_id']}",
+            "avatar": member.display_avatar.url if member else None,
+        })
+    return enriched
+
+
+@app.post("/api/{guild_id}/leave_requests/{leave_id}/accept")
+async def api_accept_leave(guild_id: int, leave_id: int, user=Depends(require_hr)):
+    leave = await get_leave_request(leave_id)
+    if leave is None or leave["guild_id"] != guild_id:
+        raise HTTPException(status_code=404, detail="Demande introuvable.")
+    await set_leave_status(leave_id, "accepted", int(user["id"]))
+    guild = get_guild()
+    member = guild.get_member(leave["user_id"])
+    if member:
+        try:
+            await member.send(f"✅ Ta demande de congé du {leave['start_date']} au {leave['end_date']} a été **acceptée**.")
+        except discord.Forbidden:
+            pass
+    return {"status": "ok"}
+
+
+@app.post("/api/{guild_id}/leave_requests/{leave_id}/deny")
+async def api_deny_leave(guild_id: int, leave_id: int, user=Depends(require_hr)):
+    leave = await get_leave_request(leave_id)
+    if leave is None or leave["guild_id"] != guild_id:
+        raise HTTPException(status_code=404, detail="Demande introuvable.")
+    await set_leave_status(leave_id, "refused", int(user["id"]))
+    guild = get_guild()
+    member = guild.get_member(leave["user_id"])
+    if member:
+        try:
+            await member.send(f"❌ Ta demande de congé du {leave['start_date']} au {leave['end_date']} a été **refusée**.")
+        except discord.Forbidden:
+            pass
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------
+# API — rapports d'incident
+# ---------------------------------------------------------------------
+
+def serialize_incident(incident: dict) -> dict:
+    out = dict(incident)
+    out["id"] = str(out["id"])
+    out["user_id"] = str(out["user_id"])
+    out["guild_id"] = str(out["guild_id"])
+    if out.get("resolved_by") is not None:
+        out["resolved_by"] = str(out["resolved_by"])
+    return out
+
+
+@app.get("/api/{guild_id}/incidents")
+async def api_list_incidents(guild_id: int, status: str = None, user=Depends(require_hr)):
+    incidents = await list_incident_reports(guild_id, status=status)
+    guild = get_guild()
+    enriched = []
+    for i in incidents:
+        member = guild.get_member(i["user_id"])
+        enriched.append({
+            **serialize_incident(i),
+            "username": str(member) if member else f"Utilisateur {i['user_id']}",
+            "avatar": member.display_avatar.url if member else None,
+        })
+    return enriched
+
+
+@app.post("/api/{guild_id}/incidents/{incident_id}/resolve")
+async def api_resolve_incident(guild_id: int, incident_id: int, request: Request, user=Depends(require_hr)):
+    incident = await get_incident_report(incident_id)
+    if incident is None or incident["guild_id"] != guild_id:
+        raise HTTPException(status_code=404, detail="Rapport introuvable.")
+    body = await request.json()
+    note = (body.get("note") or "").strip()
+    await resolve_incident(incident_id, int(user["id"]), note)
+    return {"status": "ok"}
+
+
+@app.post("/api/{guild_id}/incidents/{incident_id}/dismiss")
+async def api_dismiss_incident(guild_id: int, incident_id: int, request: Request, user=Depends(require_hr)):
+    incident = await get_incident_report(incident_id)
+    if incident is None or incident["guild_id"] != guild_id:
+        raise HTTPException(status_code=404, detail="Rapport introuvable.")
+    body = await request.json()
+    note = (body.get("note") or "").strip()
+    await dismiss_incident(incident_id, int(user["id"]), note)
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------
+# API — tickets
+# ---------------------------------------------------------------------
+
+def serialize_ticket(ticket: dict) -> dict:
+    out = dict(ticket)
+    out["id"] = str(out["id"])
+    out["user_id"] = str(out["user_id"])
+    out["guild_id"] = str(out["guild_id"])
+    if out.get("channel_id") is not None:
+        out["channel_id"] = str(out["channel_id"])
+    if out.get("closed_by") is not None:
+        out["closed_by"] = str(out["closed_by"])
+    return out
+
+
+@app.get("/api/{guild_id}/tickets")
+async def api_list_tickets(guild_id: int, status: str = None, user=Depends(require_hr)):
+    tickets = await list_tickets(guild_id, status=status)
+    guild = get_guild()
+    enriched = []
+    for t in tickets:
+        member = guild.get_member(t["user_id"])
+        channel = guild.get_channel(t["channel_id"]) if t.get("channel_id") else None
+        enriched.append({
+            **serialize_ticket(t),
+            "username": str(member) if member else f"Utilisateur {t['user_id']}",
+            "avatar": member.display_avatar.url if member else None,
+            "channel_name": channel.name if channel else None,
+        })
+    return enriched
+
+
+@app.post("/api/{guild_id}/tickets/{ticket_id}/close")
+async def api_close_ticket(guild_id: int, ticket_id: int, user=Depends(require_hr)):
+    ticket = await get_ticket(ticket_id)
+    if ticket is None or ticket["guild_id"] != guild_id:
+        raise HTTPException(status_code=404, detail="Ticket introuvable.")
+    await close_ticket(ticket_id, int(user["id"]))
+
+    if ticket.get("channel_id"):
+        guild = get_guild()
+        channel = guild.get_channel(ticket["channel_id"])
+        if channel:
+            try:
+                await channel.send("🔒 Ce ticket a été fermé depuis le dashboard.")
+                await channel.edit(name=f"closed-{channel.name}"[:95])
+            except discord.Forbidden:
+                pass
+
     return {"status": "ok"}
 
 
