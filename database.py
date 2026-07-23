@@ -84,6 +84,9 @@ CREATE TABLE IF NOT EXISTS server_config (
     employee_portal_channel_id BIGINT,
     hr_log_channel_id BIGINT,
     tickets_category_id BIGINT,
+    sanction_category_id BIGINT,
+    sanctioned_role_id BIGINT,
+    prison_role_id BIGINT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -164,12 +167,43 @@ CREATE TABLE IF NOT EXISTS tickets (
     closed_by BIGINT,
     closed_at TIMESTAMPTZ
 );
+
+CREATE TABLE IF NOT EXISTS sanctions (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    reason TEXT NOT NULL,
+    sanctioned_by BIGINT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    channel_id BIGINT,
+    message_id BIGINT,
+    contest_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_by BIGINT,
+    resolved_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS prison_sentences (
+    id SERIAL PRIMARY KEY,
+    guild_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    sanction_id INTEGER REFERENCES sanctions(id) ON DELETE SET NULL,
+    given_by BIGINT NOT NULL,
+    saved_roles TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ends_at TIMESTAMPTZ NOT NULL,
+    released_at TIMESTAMPTZ
+);
 """
 
 MIGRATIONS_ALTER = [
     "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS employee_portal_channel_id BIGINT",
     "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS hr_log_channel_id BIGINT",
     "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS tickets_category_id BIGINT",
+    "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS sanction_category_id BIGINT",
+    "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS sanctioned_role_id BIGINT",
+    "ALTER TABLE server_config ADD COLUMN IF NOT EXISTS prison_role_id BIGINT",
 ]
 
 

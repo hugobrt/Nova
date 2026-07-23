@@ -28,6 +28,7 @@
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="leaves">Congés</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="incidents">Incidents</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="tickets">Tickets</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="prison">Prison</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="announce">Annonces</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="config">Configuration</button>
   </div>
@@ -122,6 +123,15 @@
     <div id="tickets-list" class="grid gap-4"></div>
   </div>
 
+  <!-- PRISON -->
+  <div id="tab-prison" class="tab-content hidden space-y-4">
+    <div class="flex gap-2 mb-2">
+      <button class="prison-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="active">En cours</button>
+      <button class="prison-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Toutes</button>
+    </div>
+    <div id="prison-list" class="grid gap-4"></div>
+  </div>
+
   <!-- ANNONCES -->
   <div id="tab-announce" class="tab-content hidden">
     <form id="announce-form" class="bg-slate-800 rounded-xl p-6 space-y-5 max-w-2xl" enctype="multipart/form-data">
@@ -208,6 +218,18 @@
         <label class="block text-sm text-slate-400 mb-1">Catégorie des tickets (salons privés créés automatiquement)</label>
         <select name="tickets_category_id" id="config-tickets-category" class="w-full bg-slate-700 rounded-lg px-3 py-2"></select>
       </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Catégorie du tribunal (salons de sanction créés automatiquement)</label>
+        <select name="sanction_category_id" id="config-sanction-category" class="w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Rôle Sanctionné (accès au tribunal)</label>
+        <select name="sanctioned_role_id" class="role-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Rôle Prison (retire tous les autres rôles temporairement)</label>
+        <select name="prison_role_id" class="role-select w-full bg-slate-700 rounded-lg px-3 py-2"></select>
+      </div>
       <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 transition rounded-lg px-6 py-2 font-semibold">Enregistrer</button>
       <span id="config-saved" class="ml-3 text-green-400 hidden">✅ Enregistré</span>
     </form>
@@ -234,6 +256,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'leaves') loadLeaves('pending');
     if (btn.dataset.tab === 'incidents') loadIncidents('open');
     if (btn.dataset.tab === 'tickets') loadTickets('open');
+    if (btn.dataset.tab === 'prison') loadPrison('active');
     if (btn.dataset.tab === 'config') loadConfig();
     if (btn.dataset.tab === 'announce') loadAnnounceChannels();
   });
@@ -384,6 +407,7 @@ async function loadEmployees() {
       </div>
       <div class="flex gap-2">
         <button onclick="sanctionEmployee('${e.user_id}')" class="text-sm bg-yellow-700 hover:bg-yellow-600 transition rounded-lg px-3 py-1">⚠️ Sanctionner</button>
+        <button onclick="imprisonEmployee('${e.user_id}')" class="text-sm bg-slate-900 hover:bg-black transition rounded-lg px-3 py-1 border border-slate-500">🔒 Prison</button>
         <button onclick="fireEmployee('${e.user_id}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">🚪 Virer</button>
       </div>
     </div>`).join('');
@@ -399,6 +423,53 @@ async function fireEmployee(userId) {
   if (!reason) return;
   await fetch(`/api/${GUILD_ID}/employees/${userId}/fire`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason}) });
   loadEmployees();
+}
+async function imprisonEmployee(userId) {
+  const hours = prompt("Durée de la peine de prison (en heures) :");
+  if (!hours || isNaN(hours) || Number(hours) <= 0) return;
+  const res = await fetch(`/api/${GUILD_ID}/employees/${userId}/imprison`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({hours}) });
+  if (!res.ok) {
+    const err = await res.json();
+    alert('⚠️ ' + (err.detail || 'Erreur.'));
+    return;
+  }
+  alert('🔒 Membre envoyé en prison.');
+  loadEmployees();
+}
+
+// --- Prison ---
+document.querySelectorAll('.prison-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.prison-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
+    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    loadPrison(btn.dataset.status);
+  });
+});
+async function loadPrison(status) {
+  const url = status ? `/api/${GUILD_ID}/prison?status=${status}` : `/api/${GUILD_ID}/prison`;
+  const res = await fetch(url);
+  const container = document.getElementById('prison-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (admin requis).</p>'; return; }
+  const items = await res.json();
+  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune peine de prison.</p>'; return; }
+  container.innerHTML = items.map(p => `
+    <div class="bg-slate-800 rounded-xl p-5 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        ${p.avatar ? `<img src="${p.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
+        <div>
+          <p class="font-bold">${p.username}</p>
+          <p class="text-slate-400 text-sm">Depuis le ${new Date(p.created_at).toLocaleString('fr-FR')} — jusqu'au ${new Date(p.ends_at).toLocaleString('fr-FR')}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-2 py-1 rounded-full ${p.status === 'active' ? 'bg-red-700' : 'bg-slate-600'}">${p.status}</span>
+        ${p.status === 'active' ? `<button onclick="releasePrison('${p.id}')" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">🔓 Libérer</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+async function releasePrison(id) {
+  await fetch(`/api/${GUILD_ID}/prison/${id}/release`, { method: 'POST' });
+  loadPrison('active');
 }
 
 // --- Annonces ---
@@ -446,6 +517,10 @@ async function loadConfig() {
   const catSelect = document.getElementById('config-tickets-category');
   const currentCat = config['tickets_category_id'];
   catSelect.innerHTML = '<option value="">Aucune</option>' + categories.map(c => `<option value="${c.id}" ${c.id == currentCat ? 'selected' : ''}>${c.name}</option>`).join('');
+
+  const sanctionCatSelect = document.getElementById('config-sanction-category');
+  const currentSanctionCat = config['sanction_category_id'];
+  sanctionCatSelect.innerHTML = '<option value="">Aucune</option>' + categories.map(c => `<option value="${c.id}" ${c.id == currentSanctionCat ? 'selected' : ''}>${c.name}</option>`).join('');
 }
 document.getElementById('config-form').addEventListener('submit', async (e) => {
   e.preventDefault();

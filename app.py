@@ -25,12 +25,17 @@ from config_store import get_guild_config, set_guild_config
 from jobs_store import (
     create_job, attach_message, get_job, list_jobs, close_job, set_application_status,
 )
-from employees_store import hire_employee, list_employees, sanction_employee, fire_employee
+from employees_store import hire_employee, list_employees, sanction_employee, fire_employee, get_employee
 from requests_store import (
     list_leave_requests, get_leave_request, set_leave_status,
     list_incident_reports, get_incident_report, resolve_incident, dismiss_incident,
     list_tickets, get_ticket, close_ticket,
 )
+from sanctions_store import (
+    create_sanction, attach_sanction_channel, get_sanction, list_sanctions,
+    create_prison_sentence, get_active_prison_for_user, list_prison_sentences, release_prison_sentence,
+)
+import datetime
 import oauth
 
 logger = logging.getLogger("API")
@@ -80,6 +85,7 @@ CONFIG_ID_FIELDS = [
     "jobs_channel_id", "application_log_channel_id",
     "employee_role_id", "hr_role_id",
     "employee_portal_channel_id", "hr_log_channel_id", "tickets_category_id",
+    "sanction_category_id", "sanctioned_role_id", "prison_role_id",
 ]
 
 
@@ -263,6 +269,7 @@ async def update_config(guild_id: int, request: Request, user=Depends(require_ad
         "jobs_channel_id", "application_log_channel_id",
         "employee_role_id", "hr_role_id",
         "employee_portal_channel_id", "hr_log_channel_id", "tickets_category_id",
+        "sanction_category_id", "sanctioned_role_id", "prison_role_id",
     }
     fields = {k: int(v) for k, v in body.items() if k in allowed_fields and v}
     if not fields:
@@ -468,17 +475,76 @@ async def api_list_employees(guild_id: int, status: str = None, user=Depends(req
 
 @app.post("/api/{guild_id}/employees/{user_id}/sanction")
 async def api_sanction_employee(guild_id: int, user_id: int, request: Request, user=Depends(require_hr)):
+    """
+    Sanctionne un employé : lui donne le rôle "Sanctionné" (accès à la
+    catégorie tribunal), crée un salon privé dédié avec le motif et un
+    bouton "Contester". Ne vire pas l'employé.
+    """
     body = await request.json()
     reason = (body.get("reason") or "Non précisée").strip()
     guild = get_guild()
     member = guild.get_member(user_id)
+
     await sanction_employee(guild_id, user_id, reason, int(user["id"]))
+    sanction_id = await create_sanction(guild_id, user_id, reason, int(user["id"]))
+
+    config = await get_guild_config(guild_id)
+    sanctioned_role_id = config.get("sanctioned_role_id")
+    category_id = config.get("sanction_category_id")
+
+    if member and sanctioned_role_id:
+        role = guild.get_role(sanctioned_role_id)
+        if role:
+            try:
+                await member.add_roles(role, reason=f"Sanction #{sanction_id}")
+            except discord.Forbidden:
+                pass
+
+    channel = None
+    if member:
+        category = await resolve_channel(guild, category_id) if category_id else None
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            member: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+        }
+        hr_role_id = config.get("hr_role_id")
+        if hr_role_id:
+            hr_role = guild.get_role(hr_role_id)
+            if hr_role:
+                overwrites[hr_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+        try:
+            channel = await guild.create_text_channel(
+                f"sanction-{sanction_id}-{member.name}"[:95],
+                category=category if isinstance(category, discord.CategoryChannel) else None,
+                overwrites=overwrites,
+                topic=f"Sanction #{sanction_id}",
+            )
+        except discord.Forbidden:
+            channel = None
+
+    if channel:
+        from tribunal import ContestButton
+        embed = discord.Embed(
+            title=f"⚖️ Sanction #{sanction_id}",
+            description=f"{member.mention} a été sanctionné.",
+            color=discord.Color.red(),
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.add_field(name="Raison", value=reason, inline=False)
+        embed.set_footer(text=f"Sanctionné par {user['username']}")
+        view = discord.ui.View(timeout=None)
+        view.add_item(ContestButton(sanction_id))
+        message = await channel.send(content=member.mention, embed=embed, view=view)
+        await attach_sanction_channel(sanction_id, channel.id, message.id)
+
     if member:
         try:
-            await member.send(f"⚠️ Tu as été sanctionné sur **{guild.name}** : {reason}")
+            await member.send(f"⚠️ Tu as été sanctionné sur **{guild.name}** : {reason}" + (f"\nVoir {channel.mention}" if channel else ""))
         except discord.Forbidden:
             pass
-    return {"status": "ok"}
+
+    return {"status": "ok", "sanction_id": str(sanction_id)}
 
 
 @app.post("/api/{guild_id}/employees/{user_id}/fire")
@@ -504,6 +570,149 @@ async def api_fire_employee(guild_id: int, user_id: int, request: Request, user=
             await member.send(f"🚪 Tu as été licencié de **{guild.name}** : {reason}")
         except discord.Forbidden:
             pass
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------
+# API — sanctions (liste) & Prison (mise en prison / libération)
+# ---------------------------------------------------------------------
+
+def serialize_sanction(s: dict) -> dict:
+    out = dict(s)
+    for field in ("id", "guild_id", "user_id", "sanctioned_by", "channel_id", "message_id", "resolved_by"):
+        if out.get(field) is not None:
+            out[field] = str(out[field])
+    return out
+
+
+@app.get("/api/{guild_id}/sanctions")
+async def api_list_sanctions(guild_id: int, status: str = None, user=Depends(require_hr)):
+    sanctions = await list_sanctions(guild_id, status=status)
+    guild = get_guild()
+    enriched = []
+    for s in sanctions:
+        member = guild.get_member(s["user_id"])
+        enriched.append({
+            **serialize_sanction(s),
+            "username": str(member) if member else f"Utilisateur {s['user_id']}",
+            "avatar": member.display_avatar.url if member else None,
+        })
+    return enriched
+
+
+def serialize_prison(p: dict) -> dict:
+    out = dict(p)
+    for field in ("id", "guild_id", "user_id", "sanction_id", "given_by"):
+        if out.get(field) is not None:
+            out[field] = str(out[field])
+    return out
+
+
+@app.get("/api/{guild_id}/prison")
+async def api_list_prison(guild_id: int, status: str = None, user=Depends(require_hr)):
+    sentences = await list_prison_sentences(guild_id, status=status)
+    guild = get_guild()
+    enriched = []
+    for p in sentences:
+        member = guild.get_member(p["user_id"])
+        enriched.append({
+            **serialize_prison(p),
+            "username": str(member) if member else f"Utilisateur {p['user_id']}",
+            "avatar": member.display_avatar.url if member else None,
+        })
+    return enriched
+
+
+@app.post("/api/{guild_id}/employees/{user_id}/imprison")
+async def api_imprison_employee(guild_id: int, user_id: int, request: Request, user=Depends(require_admin)):
+    """
+    [Admin uniquement] Envoie le membre en Prison pour une durée donnée
+    (en heures). Sauvegarde tous ses rôles actuels, les retire, donne
+    le rôle Prison. Un job de fond restaure tout à la fin de la peine.
+    """
+    body = await request.json()
+    hours = body.get("hours")
+    sanction_id = body.get("sanction_id")
+    if not hours or float(hours) <= 0:
+        raise HTTPException(status_code=400, detail="Durée de prison invalide.")
+
+    guild = get_guild()
+    member = guild.get_member(user_id)
+    if member is None:
+        raise HTTPException(status_code=404, detail="Membre introuvable sur le serveur.")
+
+    existing = await get_active_prison_for_user(guild_id, user_id)
+    if existing:
+        raise HTTPException(status_code=400, detail="Ce membre est déjà en prison.")
+
+    config = await get_guild_config(guild_id)
+    prison_role_id = config.get("prison_role_id")
+    if not prison_role_id:
+        raise HTTPException(status_code=400, detail="Rôle Prison non configuré (voir l'onglet Configuration).")
+    prison_role = guild.get_role(prison_role_id)
+    if prison_role is None:
+        raise HTTPException(status_code=400, detail="Rôle Prison introuvable sur le serveur.")
+
+    current_role_ids = [r.id for r in member.roles if r.name != "@everyone" and r.id != prison_role_id]
+    saved_roles = ",".join(str(rid) for rid in current_role_ids)
+    ends_at = datetime.datetime.utcnow() + datetime.timedelta(hours=float(hours))
+
+    sentence_id = await create_prison_sentence(
+        guild_id, user_id, int(sanction_id) if sanction_id else None, int(user["id"]), saved_roles, ends_at
+    )
+
+    try:
+        roles_to_remove = [guild.get_role(rid) for rid in current_role_ids]
+        roles_to_remove = [r for r in roles_to_remove if r is not None]
+        if roles_to_remove:
+            await member.remove_roles(*roles_to_remove, reason=f"Mise en prison #{sentence_id}")
+        await member.add_roles(prison_role, reason=f"Mise en prison #{sentence_id}")
+    except discord.Forbidden:
+        raise HTTPException(status_code=403, detail="Le bot n'a pas la permission de gérer les rôles de ce membre.")
+
+    try:
+        await member.send(f"🔒 Tu as été envoyé en **prison** sur **{guild.name}** pour {hours}h.")
+    except discord.Forbidden:
+        pass
+
+    return {"status": "ok", "sentence_id": str(sentence_id), "ends_at": ends_at.isoformat()}
+
+
+@app.post("/api/{guild_id}/prison/{sentence_id}/release")
+async def api_release_prison(guild_id: int, sentence_id: int, user=Depends(require_admin)):
+    """[Admin uniquement] Libère un membre avant la fin de sa peine, restaure ses rôles."""
+    sentences = await list_prison_sentences(guild_id, status="active")
+    sentence = next((s for s in sentences if s["id"] == sentence_id), None)
+    if sentence is None:
+        raise HTTPException(status_code=404, detail="Peine introuvable ou déjà terminée.")
+
+    guild = get_guild()
+    member = guild.get_member(sentence["user_id"])
+    config = await get_guild_config(guild_id)
+    prison_role_id = config.get("prison_role_id")
+
+    if member:
+        if prison_role_id:
+            prison_role = guild.get_role(prison_role_id)
+            if prison_role and prison_role in member.roles:
+                try:
+                    await member.remove_roles(prison_role, reason="Libération anticipée")
+                except discord.Forbidden:
+                    pass
+        saved_ids = [int(rid) for rid in sentence["saved_roles"].split(",") if rid]
+        roles_to_restore = [guild.get_role(rid) for rid in saved_ids]
+        roles_to_restore = [r for r in roles_to_restore if r is not None]
+        if roles_to_restore:
+            try:
+                await member.add_roles(*roles_to_restore, reason="Libération anticipée — restauration des rôles")
+            except discord.Forbidden:
+                pass
+        try:
+            await member.send(f"🔓 Tu as été libéré de prison sur **{guild.name}** (libération anticipée).")
+        except discord.Forbidden:
+            pass
+
+    await release_prison_sentence(sentence_id)
     return {"status": "ok"}
 
 

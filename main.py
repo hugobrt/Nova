@@ -45,6 +45,7 @@ COGS = [
     "onboarding",
     "jobs",
     "portal",
+    "tribunal",
 ]
 
 
