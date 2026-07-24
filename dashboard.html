@@ -29,6 +29,7 @@
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="incidents">Incidents</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="tickets">Tickets</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="prison">Prison</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="staff-accounts">Comptes Staff</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="announce">Annonces</button>
     <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="config">Configuration</button>
   </div>
@@ -130,6 +131,22 @@
       <button class="prison-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Toutes</button>
     </div>
     <div id="prison-list" class="grid gap-4"></div>
+  </div>
+
+  <!-- COMPTES STAFF -->
+  <div id="tab-staff-accounts" class="tab-content hidden space-y-4">
+    <div class="bg-slate-800 rounded-xl p-5">
+      <h3 class="font-bold mb-3">Créer un compte staff</h3>
+      <p class="text-slate-400 text-sm mb-4">Donne accès à un mini-dashboard limité : employés, congés, incidents, tickets, tribunal/prison. Aucun accès à la configuration, aux offres d'emploi ni aux annonces.</p>
+      <form id="staff-create-form" class="flex flex-wrap gap-3">
+        <input name="username" placeholder="Identifiant" required class="bg-slate-700 rounded-lg px-3 py-2 flex-1 min-w-[150px]">
+        <input name="display_name" placeholder="Nom affiché (optionnel)" class="bg-slate-700 rounded-lg px-3 py-2 flex-1 min-w-[150px]">
+        <input name="password" placeholder="Mot de passe (laisser vide = généré auto)" class="bg-slate-700 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 transition rounded-lg px-6 py-2 font-semibold">Créer</button>
+      </form>
+      <div id="staff-create-result" class="hidden mt-3 bg-green-900/40 border border-green-600 rounded-lg px-4 py-3 text-sm"></div>
+    </div>
+    <div id="staff-accounts-list" class="grid gap-4"></div>
   </div>
 
   <!-- ANNONCES -->
@@ -257,6 +274,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'incidents') loadIncidents('open');
     if (btn.dataset.tab === 'tickets') loadTickets('open');
     if (btn.dataset.tab === 'prison') loadPrison('active');
+    if (btn.dataset.tab === 'staff-accounts') loadStaffAccounts();
     if (btn.dataset.tab === 'config') loadConfig();
     if (btn.dataset.tab === 'announce') loadAnnounceChannels();
   });
@@ -666,6 +684,72 @@ async function loadTickets(status) {
 async function closeTicket(id) {
   await fetch(`/api/${GUILD_ID}/tickets/${id}/close`, { method: 'POST' });
   loadTickets('open');
+}
+
+// --- Comptes Staff ---
+document.getElementById('staff-create-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  const body = Object.fromEntries(formData.entries());
+  const resultBox = document.getElementById('staff-create-result');
+  const res = await fetch(`/api/${GUILD_ID}/staff_accounts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const err = await res.json();
+    resultBox.className = 'mt-3 bg-red-900/40 border border-red-600 rounded-lg px-4 py-3 text-sm';
+    resultBox.textContent = '⚠️ ' + (err.detail || 'Erreur.');
+    resultBox.classList.remove('hidden');
+    return;
+  }
+  const data = await res.json();
+  resultBox.className = 'mt-3 bg-green-900/40 border border-green-600 rounded-lg px-4 py-3 text-sm';
+  resultBox.innerHTML = `✅ Compte créé — Identifiant : <b>${data.username}</b> — Mot de passe : <b>${data.password}</b><br><span class="text-slate-400">Note bien ce mot de passe, il ne sera plus affiché.</span>`;
+  resultBox.classList.remove('hidden');
+  e.target.reset();
+  loadStaffAccounts();
+});
+
+async function loadStaffAccounts() {
+  const res = await fetch(`/api/${GUILD_ID}/staff_accounts`);
+  const container = document.getElementById('staff-accounts-list');
+  if (!res.ok) {
+    const err = await res.json();
+    container.innerHTML = `<p class="text-red-400">⚠️ ${err.detail || 'Erreur.'}</p>`;
+    return;
+  }
+  const accounts = await res.json();
+  if (accounts.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun compte staff créé.</p>'; return; }
+  container.innerHTML = accounts.map(a => `
+    <div class="bg-slate-800 rounded-xl p-5 flex justify-between items-center">
+      <div>
+        <p class="font-bold">${a.display_name} <span class="text-slate-500 text-sm">(@${a.username})</span></p>
+        <p class="text-slate-400 text-sm">
+          ${a.last_login_at ? 'Dernière connexion : ' + new Date(a.last_login_at).toLocaleString('fr-FR') : 'Jamais connecté'}
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-2 py-1 rounded-full ${a.active ? 'bg-green-700' : 'bg-slate-600'}">${a.active ? 'actif' : 'désactivé'}</span>
+        <button onclick="toggleStaffAccount('${a.id}', ${!a.active})" class="text-sm ${a.active ? 'bg-yellow-700 hover:bg-yellow-600' : 'bg-green-700 hover:bg-green-600'} transition rounded-lg px-3 py-1">${a.active ? '⏸️ Désactiver' : '▶️ Activer'}</button>
+        <button onclick="resetStaffPassword('${a.id}')" class="text-sm bg-blue-700 hover:bg-blue-600 transition rounded-lg px-3 py-1">🔑 Réinitialiser MDP</button>
+        <button onclick="deleteStaffAccount('${a.id}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">🗑️ Supprimer</button>
+      </div>
+    </div>`).join('');
+}
+
+async function toggleStaffAccount(id, active) {
+  await fetch(`/api/${GUILD_ID}/staff_accounts/${id}/toggle`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({active}) });
+  loadStaffAccounts();
+}
+
+async function resetStaffPassword(id) {
+  const res = await fetch(`/api/${GUILD_ID}/staff_accounts/${id}/reset_password`, { method: 'POST' });
+  const data = await res.json();
+  alert('🔑 Nouveau mot de passe : ' + data.password);
+}
+
+async function deleteStaffAccount(id) {
+  if (!confirm('Supprimer ce compte staff définitivement ?')) return;
+  await fetch(`/api/${GUILD_ID}/staff_accounts/${id}`, { method: 'DELETE' });
+  loadStaffAccounts();
 }
 
 loadStats();

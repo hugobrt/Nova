@@ -35,6 +35,7 @@ from sanctions_store import (
     create_sanction, attach_sanction_channel, get_sanction, list_sanctions,
     create_prison_sentence, get_active_prison_for_user, list_prison_sentences, release_prison_sentence,
 )
+import staff_auth
 import datetime
 import oauth
 
@@ -128,6 +129,14 @@ def require_admin(request: Request):
 
 
 async def require_hr(request: Request):
+    """
+    Autorise soit un admin/RH connecté via Discord OAuth2, soit un compte
+    staff connecté via identifiant/mot de passe (base de données séparée).
+    """
+    staff_user = request.session.get("staff_user")
+    if staff_user:
+        return staff_user
+
     user = require_admin(request)
     guild = get_guild()
     member = guild.get_member(int(user["id"]))
@@ -143,6 +152,14 @@ async def require_hr(request: Request):
         return user
 
     raise HTTPException(status_code=403, detail="Rôle RH requis pour cette action.")
+
+
+def require_staff_or_admin(request: Request):
+    """Pour les pages qui acceptent staff OU admin, sans dépendre du cache Discord."""
+    staff_user = request.session.get("staff_user")
+    if staff_user:
+        return staff_user
+    return require_admin(request)
 
 
 @app.get("/login")
@@ -183,6 +200,115 @@ async def logout(request: Request):
 @app.get("/login-page", response_class=HTMLResponse)
 async def login_page(request: Request):
     return templates.TemplateResponse(request, "login.html", {})
+
+
+# ---------------------------------------------------------------------
+# Auth — comptes STAFF (identifiant/mot de passe, BDD séparée)
+# ---------------------------------------------------------------------
+
+@app.get("/staff/login", response_class=HTMLResponse)
+async def staff_login_page(request: Request):
+    if not staff_auth.is_staff_enabled():
+        return HTMLResponse("<h1>Le système de comptes staff n'est pas configuré (STAFF_DATABASE_URL manquant).</h1>", status_code=503)
+    return templates.TemplateResponse(request, "staff_login.html", {})
+
+
+@app.post("/staff/login")
+async def staff_login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
+    if not staff_auth.is_staff_enabled():
+        raise HTTPException(status_code=503, detail="Système staff non configuré.")
+    account = await staff_auth.verify_staff_login(username, password)
+    if account is None:
+        return templates.TemplateResponse(
+            request, "staff_login.html", {"error": "Identifiant ou mot de passe incorrect."}, status_code=401
+        )
+    request.session["staff_user"] = {
+        "id": str(-account["id"]),
+        "username": account["display_name"],
+        "is_staff": True,
+    }
+    return RedirectResponse("/staff", status_code=302)
+
+
+@app.get("/staff/logout")
+async def staff_logout(request: Request):
+    request.session.pop("staff_user", None)
+    return RedirectResponse("/staff/login")
+
+
+@app.get("/staff", response_class=HTMLResponse)
+async def staff_dashboard_page(request: Request):
+    staff_user = request.session.get("staff_user")
+    if not staff_user:
+        return RedirectResponse("/staff/login")
+    return templates.TemplateResponse(request, "staff_dashboard.html", {"user": staff_user, "guild_id": GUILD_ID})
+
+
+# ---------------------------------------------------------------------
+# API — gestion des comptes staff (admin uniquement)
+# ---------------------------------------------------------------------
+
+@app.get("/api/{guild_id}/staff_accounts")
+async def api_list_staff_accounts(guild_id: int, user=Depends(require_admin)):
+    if not staff_auth.is_staff_enabled():
+        raise HTTPException(status_code=503, detail="Système staff non configuré (STAFF_DATABASE_URL manquant).")
+    accounts = await staff_auth.list_staff_accounts(guild_id)
+    return [
+        {
+            "id": str(a["id"]),
+            "username": a["username"],
+            "display_name": a["display_name"],
+            "active": a["active"],
+            "created_at": a["created_at"].isoformat() if a["created_at"] else None,
+            "last_login_at": a["last_login_at"].isoformat() if a["last_login_at"] else None,
+        }
+        for a in accounts
+    ]
+
+
+@app.post("/api/{guild_id}/staff_accounts")
+async def api_create_staff_account(guild_id: int, request: Request, user=Depends(require_admin)):
+    if not staff_auth.is_staff_enabled():
+        raise HTTPException(status_code=503, detail="Système staff non configuré (STAFF_DATABASE_URL manquant).")
+    body = await request.json()
+    username = (body.get("username") or "").strip()
+    display_name = (body.get("display_name") or username).strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Identifiant requis.")
+
+    existing = await staff_auth.get_staff_account_by_username(username)
+    if existing:
+        raise HTTPException(status_code=400, detail="Cet identifiant existe déjà.")
+
+    password = body.get("password") or staff_auth.generate_password()
+    account_id = await staff_auth.create_staff_account(guild_id, username, display_name, password, int(user["id"]))
+    return {"id": str(account_id), "username": username.lower(), "password": password}
+
+
+@app.post("/api/{guild_id}/staff_accounts/{account_id}/toggle")
+async def api_toggle_staff_account(guild_id: int, account_id: int, request: Request, user=Depends(require_admin)):
+    if not staff_auth.is_staff_enabled():
+        raise HTTPException(status_code=503, detail="Système staff non configuré.")
+    body = await request.json()
+    await staff_auth.set_staff_active(account_id, bool(body.get("active", True)))
+    return {"status": "ok"}
+
+
+@app.post("/api/{guild_id}/staff_accounts/{account_id}/reset_password")
+async def api_reset_staff_password(guild_id: int, account_id: int, user=Depends(require_admin)):
+    if not staff_auth.is_staff_enabled():
+        raise HTTPException(status_code=503, detail="Système staff non configuré.")
+    new_password = staff_auth.generate_password()
+    await staff_auth.reset_staff_password(account_id, new_password)
+    return {"password": new_password}
+
+
+@app.delete("/api/{guild_id}/staff_accounts/{account_id}")
+async def api_delete_staff_account(guild_id: int, account_id: int, user=Depends(require_admin)):
+    if not staff_auth.is_staff_enabled():
+        raise HTTPException(status_code=503, detail="Système staff non configuré.")
+    await staff_auth.delete_staff_account(account_id, guild_id)
+    return {"status": "ok"}
 
 
 # ---------------------------------------------------------------------
@@ -624,7 +750,7 @@ async def api_list_prison(guild_id: int, status: str = None, user=Depends(requir
 
 
 @app.post("/api/{guild_id}/employees/{user_id}/imprison")
-async def api_imprison_employee(guild_id: int, user_id: int, request: Request, user=Depends(require_admin)):
+async def api_imprison_employee(guild_id: int, user_id: int, request: Request, user=Depends(require_hr)):
     """
     [Admin uniquement] Envoie le membre en Prison pour une durée donnée
     (en heures). Sauvegarde tous ses rôles actuels, les retire, donne
@@ -679,7 +805,7 @@ async def api_imprison_employee(guild_id: int, user_id: int, request: Request, u
 
 
 @app.post("/api/{guild_id}/prison/{sentence_id}/release")
-async def api_release_prison(guild_id: int, sentence_id: int, user=Depends(require_admin)):
+async def api_release_prison(guild_id: int, sentence_id: int, user=Depends(require_hr)):
     """[Admin uniquement] Libère un membre avant la fin de sa peine, restaure ses rôles."""
     sentences = await list_prison_sentences(guild_id, status="active")
     sentence = next((s for s in sentences if s["id"] == sentence_id), None)

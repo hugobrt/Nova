@@ -23,6 +23,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from database import init_db, close_db
+from staff_auth import init_staff_db, close_staff_db
 from app import app as fastapi_app, set_bot
 
 load_dotenv()
@@ -105,10 +106,12 @@ async def run_api():
 
 async def main():
     await init_db()
+    await init_staff_db()
     try:
         await asyncio.gather(run_bot(), run_api())
     finally:
         await close_db()
+        await close_staff_db()
 
 
 if __name__ == "__main__":

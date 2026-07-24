@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Connexion Staff</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center">
+  <div class="bg-slate-800 rounded-2xl p-8 w-full max-w-sm shadow-xl">
+    <h1 class="text-2xl font-bold mb-1 text-center">🚌 Espace Staff</h1>
+    <p class="text-slate-400 text-sm text-center mb-6">Employés · Congés · Incidents · Tickets · Tribunal</p>
+    {% if error %}
+    <div class="bg-red-900/50 border border-red-600 text-red-300 text-sm rounded-lg px-3 py-2 mb-4">{{ error }}</div>
+    {% endif %}
+    <form method="POST" action="/staff/login" class="space-y-4">
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Identifiant</label>
+        <input type="text" name="username" required autocomplete="username"
+               class="w-full bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Mot de passe</label>
+        <input type="password" name="password" required autocomplete="current-password"
+               class="w-full bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 transition rounded-lg py-2 font-semibold">
+        Se connecter
+      </button>
+    </form>
+  </div>
+</body>
+</html>

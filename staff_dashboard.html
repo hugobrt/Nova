@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Espace Staff</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+  <header class="bg-slate-800 px-6 py-4 flex justify-between items-center shadow">
+    <h1 class="text-xl font-bold">🚌 Espace Staff — {{ user.username }}</h1>
+    <a href="/staff/logout" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-4 py-2">Déconnexion</a>
+  </header>
+
+  <nav class="flex gap-2 px-6 py-3 border-b border-slate-700 overflow-x-auto">
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-indigo-500 text-white" data-tab="employees">Employés</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="leaves">Congés</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="incidents">Incidents</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="tickets">Tickets</button>
+    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="prison">Tribunal / Prison</button>
+  </nav>
+
+  <main class="p-6 max-w-5xl mx-auto">
+
+    <!-- EMPLOYÉS -->
+    <div id="tab-employees" class="tab-content space-y-4">
+      <div id="employees-list" class="grid gap-4"></div>
+    </div>
+
+    <!-- CONGÉS -->
+    <div id="tab-leaves" class="tab-content hidden space-y-4">
+      <div class="flex gap-2 mb-2">
+        <button class="leave-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="pending">En attente</button>
+        <button class="leave-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Toutes</button>
+      </div>
+      <div id="leaves-list" class="grid gap-4"></div>
+    </div>
+
+    <!-- INCIDENTS -->
+    <div id="tab-incidents" class="tab-content hidden space-y-4">
+      <div class="flex gap-2 mb-2">
+        <button class="incident-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="open">Ouverts</button>
+        <button class="incident-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Tous</button>
+      </div>
+      <div id="incidents-list" class="grid gap-4"></div>
+    </div>
+
+    <!-- TICKETS -->
+    <div id="tab-tickets" class="tab-content hidden space-y-4">
+      <div class="flex gap-2 mb-2">
+        <button class="ticket-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="open">Ouverts</button>
+        <button class="ticket-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Tous</button>
+      </div>
+      <div id="tickets-list" class="grid gap-4"></div>
+    </div>
+
+    <!-- PRISON -->
+    <div id="tab-prison" class="tab-content hidden space-y-4">
+      <div class="flex gap-2 mb-2">
+        <button class="prison-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="active">En cours</button>
+        <button class="prison-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Toutes</button>
+      </div>
+      <div id="prison-list" class="grid gap-4"></div>
+    </div>
+
+  </main>
+
+<script>
+const GUILD_ID = "{{ guild_id }}";
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.remove('border-indigo-500', 'text-white');
+      b.classList.add('border-transparent', 'text-slate-400');
+    });
+    btn.classList.remove('border-transparent', 'text-slate-400');
+    btn.classList.add('border-indigo-500', 'text-white');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
+
+    if (btn.dataset.tab === 'employees') loadEmployees();
+    if (btn.dataset.tab === 'leaves') loadLeaves('pending');
+    if (btn.dataset.tab === 'incidents') loadIncidents('open');
+    if (btn.dataset.tab === 'tickets') loadTickets('open');
+    if (btn.dataset.tab === 'prison') loadPrison('active');
+  });
+});
+
+async function loadEmployees() {
+  const res = await fetch(`/api/${GUILD_ID}/employees?status=active`);
+  const container = document.getElementById('employees-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
+  const employees = await res.json();
+  if (employees.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun employé actif.</p>'; return; }
+  container.innerHTML = employees.map(e => `
+    <div class="bg-slate-800 rounded-xl p-5 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        ${e.avatar ? `<img src="${e.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
+        <div>
+          <p class="font-bold">${e.username}</p>
+          <p class="text-slate-400 text-sm">Embauché le ${new Date(e.hired_at).toLocaleDateString('fr-FR')}</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="sanctionEmployee('${e.user_id}')" class="text-sm bg-yellow-700 hover:bg-yellow-600 transition rounded-lg px-3 py-1">⚠️ Sanctionner</button>
+        <button onclick="imprisonEmployee('${e.user_id}')" class="text-sm bg-slate-900 hover:bg-black transition rounded-lg px-3 py-1 border border-slate-500">🔒 Prison</button>
+        <button onclick="fireEmployee('${e.user_id}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">🚪 Virer</button>
+      </div>
+    </div>`).join('');
+}
+
+async function sanctionEmployee(userId) {
+  const reason = prompt("Raison de la sanction :");
+  if (!reason) return;
+  await fetch(`/api/${GUILD_ID}/employees/${userId}/sanction`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason}) });
+  loadEmployees();
+}
+
+async function fireEmployee(userId) {
+  const reason = prompt("Raison du licenciement :");
+  if (!reason) return;
+  await fetch(`/api/${GUILD_ID}/employees/${userId}/fire`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason}) });
+  loadEmployees();
+}
+
+async function imprisonEmployee(userId) {
+  const hours = prompt("Durée de la peine de prison (en heures) :");
+  if (!hours || isNaN(hours) || Number(hours) <= 0) return;
+  const res = await fetch(`/api/${GUILD_ID}/employees/${userId}/imprison`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({hours}) });
+  if (!res.ok) {
+    const err = await res.json();
+    alert('⚠️ ' + (err.detail || 'Erreur.'));
+    return;
+  }
+  alert('🔒 Membre envoyé en prison.');
+  loadEmployees();
+}
+
+async function acceptLeave(id) { await fetch(`/api/${GUILD_ID}/leave_requests/${id}/accept`, { method: 'POST' }); loadLeaves('pending'); }
+
+async function denyLeave(id) { await fetch(`/api/${GUILD_ID}/leave_requests/${id}/deny`, { method: 'POST' }); loadLeaves('pending'); }
+
+async function loadLeaves(status) {
+  const url = status ? `/api/${GUILD_ID}/leave_requests?status=${status}` : `/api/${GUILD_ID}/leave_requests`;
+  const res = await fetch(url);
+  const container = document.getElementById('leaves-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
+  const items = await res.json();
+  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune demande.</p>'; return; }
+  container.innerHTML = items.map(l => `
+    <div class="bg-slate-800 rounded-xl p-5">
+      <div class="flex justify-between items-start">
+        <div class="flex items-center gap-3">
+          ${l.avatar ? `<img src="${l.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
+          <div>
+            <p class="font-bold">${l.username}</p>
+            <p class="text-slate-400 text-sm">${l.start_date} → ${l.end_date}</p>
+          </div>
+        </div>
+        <span class="text-xs px-2 py-1 rounded-full ${l.status === 'accepted' ? 'bg-green-700' : l.status === 'refused' ? 'bg-red-700' : 'bg-yellow-700'}">${l.status}</span>
+      </div>
+      ${l.reason ? `<p class="text-slate-300 text-sm mt-3">${l.reason}</p>` : ''}
+      ${l.status === 'pending' ? `
+      <div class="mt-3 flex gap-2">
+        <button onclick="acceptLeave('${l.id}')" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">✅ Accepter</button>
+        <button onclick="denyLeave('${l.id}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">❌ Refuser</button>
+      </div>` : ''}
+    </div>`).join('');
+}
+
+async function resolveIncident(id) {
+  const note = prompt("Note de résolution (optionnel) :") || "";
+  await fetch(`/api/${GUILD_ID}/incidents/${id}/resolve`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({note}) });
+  loadIncidents('open');
+}
+
+async function dismissIncident(id) {
+  const note = prompt("Note (optionnel) :") || "";
+  await fetch(`/api/${GUILD_ID}/incidents/${id}/dismiss`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({note}) });
+  loadIncidents('open');
+}
+
+async function loadIncidents(status) {
+  const url = status ? `/api/${GUILD_ID}/incidents?status=${status}` : `/api/${GUILD_ID}/incidents`;
+  const res = await fetch(url);
+  const container = document.getElementById('incidents-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
+  const items = await res.json();
+  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun rapport.</p>'; return; }
+  container.innerHTML = items.map(i => `
+    <div class="bg-slate-800 rounded-xl p-5">
+      <div class="flex justify-between items-start">
+        <div class="flex items-center gap-3">
+          ${i.avatar ? `<img src="${i.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
+          <div>
+            <p class="font-bold">${i.username}</p>
+            <p class="text-slate-400 text-sm">${i.incident_type}${i.line_info ? ' — ' + i.line_info : ''}</p>
+          </div>
+        </div>
+        <span class="text-xs px-2 py-1 rounded-full ${i.status === 'resolved' ? 'bg-green-700' : i.status === 'dismissed' ? 'bg-slate-600' : 'bg-orange-700'}">${i.status}</span>
+      </div>
+      <p class="text-slate-300 text-sm mt-3">${i.description}</p>
+      ${i.resolution_note ? `<p class="text-slate-500 text-xs mt-2">Note : ${i.resolution_note}</p>` : ''}
+      ${i.status === 'open' ? `
+      <div class="mt-3 flex gap-2">
+        <button onclick="resolveIncident('${i.id}')" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">✅ Résoudre</button>
+        <button onclick="dismissIncident('${i.id}')" class="text-sm bg-slate-600 hover:bg-slate-500 transition rounded-lg px-3 py-1">🗑️ Classer sans suite</button>
+      </div>` : ''}
+    </div>`).join('');
+}
+
+async function closeTicket(id) {
+  await fetch(`/api/${GUILD_ID}/tickets/${id}/close`, { method: 'POST' });
+  loadTickets('open');
+}
+
+async function loadTickets(status) {
+  const url = status ? `/api/${GUILD_ID}/tickets?status=${status}` : `/api/${GUILD_ID}/tickets`;
+  const res = await fetch(url);
+  const container = document.getElementById('tickets-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
+  const items = await res.json();
+  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun ticket.</p>'; return; }
+  container.innerHTML = items.map(t => `
+    <div class="bg-slate-800 rounded-xl p-5 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        ${t.avatar ? `<img src="${t.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
+        <div>
+          <p class="font-bold">${t.subject}</p>
+          <p class="text-slate-400 text-sm">${t.username}${t.channel_name ? ' — #' + t.channel_name : ''}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-2 py-1 rounded-full ${t.status === 'closed' ? 'bg-slate-600' : 'bg-green-700'}">${t.status}</span>
+        ${t.status === 'open' ? `<button onclick="closeTicket('${t.id}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">🔒 Fermer</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+async function releasePrison(id) {
+  await fetch(`/api/${GUILD_ID}/prison/${id}/release`, { method: 'POST' });
+  loadPrison('active');
+}
+
+async function loadPrison(status) {
+  const url = status ? `/api/${GUILD_ID}/prison?status=${status}` : `/api/${GUILD_ID}/prison`;
+  const res = await fetch(url);
+  const container = document.getElementById('prison-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (admin requis).</p>'; return; }
+  const items = await res.json();
+  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune peine de prison.</p>'; return; }
+  container.innerHTML = items.map(p => `
+    <div class="bg-slate-800 rounded-xl p-5 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        ${p.avatar ? `<img src="${p.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
+        <div>
+          <p class="font-bold">${p.username}</p>
+          <p class="text-slate-400 text-sm">Depuis le ${new Date(p.created_at).toLocaleString('fr-FR')} — jusqu'au ${new Date(p.ends_at).toLocaleString('fr-FR')}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-2 py-1 rounded-full ${p.status === 'active' ? 'bg-red-700' : 'bg-slate-600'}">${p.status}</span>
+        ${p.status === 'active' ? `<button onclick="releasePrison('${p.id}')" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">🔓 Libérer</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+document.querySelectorAll('.leave-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.leave-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
+    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    loadLeaves(btn.dataset.status);
+  });
+});
+document.querySelectorAll('.incident-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.incident-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
+    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    loadIncidents(btn.dataset.status);
+  });
+});
+document.querySelectorAll('.ticket-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.ticket-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
+    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    loadTickets(btn.dataset.status);
+  });
+});
+document.querySelectorAll('.prison-filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.prison-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
+    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    loadPrison(btn.dataset.status);
+  });
+});
+
+loadEmployees();
+</script>
+</body>
+</html>
