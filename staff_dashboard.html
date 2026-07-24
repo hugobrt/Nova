@@ -4,77 +4,239 @@
 <meta charset="UTF-8">
 <title>Espace Staff</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+  * { font-family: 'Poppins', sans-serif; }
+
+  body {
+    background: radial-gradient(circle at 10% 0%, #1e293b 0%, #0f172a 50%, #020617 100%);
+    min-height: 100vh;
+  }
+
+  .glow-text {
+    background: linear-gradient(90deg, #818cf8, #38bdf8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .card {
+    background: rgba(30, 41, 59, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    transition: all 0.25s ease;
+  }
+  .card:hover {
+    border-color: rgba(129, 140, 248, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -8px rgba(99, 102, 241, 0.3);
+  }
+
+  .tab-btn {
+    transition: all 0.25s ease;
+    position: relative;
+  }
+  .tab-btn.active {
+    color: white;
+  }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #818cf8, #38bdf8);
+    border-radius: 2px;
+  }
+
+  .tab-content {
+    animation: tabIn 0.35s ease;
+  }
+  @keyframes tabIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .btn-action {
+    transition: all 0.2s ease;
+  }
+  .btn-action:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+  }
+  .btn-action:active {
+    transform: translateY(0) scale(0.97);
+  }
+
+  /* Modal de confirmation */
+  .confirm-overlay {
+    position: fixed; inset: 0;
+    background: rgba(2, 6, 23, 0.75);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .confirm-overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .confirm-box {
+    transform: scale(0.9) translateY(10px);
+    opacity: 0;
+    transition: all 0.25s ease;
+  }
+  .confirm-overlay.visible .confirm-box {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    z-index: 200;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.3s ease;
+  }
+  .toast.visible {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: #4338ca; border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  .spinner {
+    border: 3px solid rgba(129, 140, 248, 0.2);
+    border-top-color: #818cf8;
+    border-radius: 50%;
+    width: 28px; height: 28px;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
 </head>
-<body class="bg-slate-900 text-white min-h-screen">
-  <header class="bg-slate-800 px-6 py-4 flex justify-between items-center shadow">
-    <h1 class="text-xl font-bold">🚌 Espace Staff — {{ user.username }}</h1>
-    <a href="/staff/logout" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-4 py-2">Déconnexion</a>
+<body class="text-white">
+
+  <header class="bg-slate-900/70 backdrop-blur-xl border-b border-slate-800 px-6 py-4 flex justify-between items-center sticky top-0 z-30">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">🚌</span>
+      <div>
+        <h1 class="text-lg font-bold">Espace <span class="glow-text">STAFF</span></h1>
+        <p class="text-slate-500 text-xs">Connecté en tant que {{ user.username }}</p>
+      </div>
+    </div>
+    <a href="/staff/logout" class="btn-action text-sm bg-red-700/80 hover:bg-red-600 rounded-xl px-4 py-2 font-medium">Déconnexion</a>
   </header>
 
-  <nav class="flex gap-2 px-6 py-3 border-b border-slate-700 overflow-x-auto">
-    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-indigo-500 text-white" data-tab="employees">Employés</button>
-    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="leaves">Congés</button>
-    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="incidents">Incidents</button>
-    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="tickets">Tickets</button>
-    <button class="tab-btn px-4 py-2 font-medium border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="prison">Tribunal / Prison</button>
+  <nav class="flex gap-1 px-6 py-3 border-b border-slate-800 overflow-x-auto bg-slate-900/40">
+    <button class="tab-btn active px-4 py-2 font-medium text-white" data-tab="employees">👥 Employés</button>
+    <button class="tab-btn px-4 py-2 font-medium text-slate-400 hover:text-white" data-tab="leaves">🗓️ Congés</button>
+    <button class="tab-btn px-4 py-2 font-medium text-slate-400 hover:text-white" data-tab="incidents">🚨 Incidents</button>
+    <button class="tab-btn px-4 py-2 font-medium text-slate-400 hover:text-white" data-tab="tickets">🎫 Tickets</button>
+    <button class="tab-btn px-4 py-2 font-medium text-slate-400 hover:text-white" data-tab="prison">⚖️ Tribunal / Prison</button>
   </nav>
 
   <main class="p-6 max-w-5xl mx-auto">
 
-    <!-- EMPLOYÉS -->
     <div id="tab-employees" class="tab-content space-y-4">
       <div id="employees-list" class="grid gap-4"></div>
     </div>
 
-    <!-- CONGÉS -->
     <div id="tab-leaves" class="tab-content hidden space-y-4">
       <div class="flex gap-2 mb-2">
-        <button class="leave-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="pending">En attente</button>
-        <button class="leave-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Toutes</button>
+        <button class="leave-filter-btn btn-action px-4 py-1.5 rounded-full text-sm bg-indigo-600 font-medium" data-status="pending">En attente</button>
+        <button class="leave-filter-btn btn-action px-4 py-1.5 rounded-full text-sm bg-slate-800 font-medium" data-status="">Toutes</button>
       </div>
       <div id="leaves-list" class="grid gap-4"></div>
     </div>
 
-    <!-- INCIDENTS -->
     <div id="tab-incidents" class="tab-content hidden space-y-4">
       <div class="flex gap-2 mb-2">
-        <button class="incident-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="open">Ouverts</button>
-        <button class="incident-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Tous</button>
+        <button class="incident-filter-btn btn-action px-4 py-1.5 rounded-full text-sm bg-indigo-600 font-medium" data-status="open">Ouverts</button>
+        <button class="incident-filter-btn btn-action px-4 py-1.5 rounded-full text-sm bg-slate-800 font-medium" data-status="">Tous</button>
       </div>
       <div id="incidents-list" class="grid gap-4"></div>
     </div>
 
-    <!-- TICKETS -->
     <div id="tab-tickets" class="tab-content hidden space-y-4">
       <div class="flex gap-2 mb-2">
-        <button class="ticket-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="open">Ouverts</button>
-        <button class="ticket-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Tous</button>
+        <button class="ticket-filter-btn btn-action px-4 py-1.5 rounded-full text-sm bg-indigo-600 font-medium" data-status="open">Ouverts</button>
+        <button class="ticket-filter-btn btn-action px-4 py-1.5 rounded-full text-sm bg-slate-800 font-medium" data-status="">Tous</button>
       </div>
       <div id="tickets-list" class="grid gap-4"></div>
     </div>
 
-    <!-- PRISON -->
     <div id="tab-prison" class="tab-content hidden space-y-4">
       <div class="flex gap-2 mb-2">
-        <button class="prison-filter-btn px-3 py-1 rounded-full text-sm bg-indigo-600" data-status="active">En cours</button>
-        <button class="prison-filter-btn px-3 py-1 rounded-full text-sm bg-slate-700" data-status="">Toutes</button>
+        <button class="prison-filter-btn btn-action px-4 py-1.5 rounded-full text-sm bg-indigo-600 font-medium" data-status="active">En cours</button>
+        <button class="prison-filter-btn btn-action px-4 py-1.5 rounded-full text-sm bg-slate-800 font-medium" data-status="">Toutes</button>
       </div>
       <div id="prison-list" class="grid gap-4"></div>
     </div>
 
   </main>
 
+  <!-- Modal de confirmation générique -->
+  <div id="confirm-overlay" class="confirm-overlay">
+    <div class="confirm-box card rounded-2xl p-6 w-full max-w-sm mx-4">
+      <h3 id="confirm-title" class="text-lg font-bold mb-2">Confirmer l'action</h3>
+      <p id="confirm-message" class="text-slate-400 text-sm mb-5">Es-tu sûr de vouloir faire ça ?</p>
+      <div id="confirm-extra"></div>
+      <div class="flex gap-3 mt-2">
+        <button id="confirm-cancel" class="btn-action flex-1 bg-slate-700 hover:bg-slate-600 rounded-xl py-2.5 font-medium">Annuler</button>
+        <button id="confirm-ok" class="btn-action flex-1 bg-indigo-600 hover:bg-indigo-500 rounded-xl py-2.5 font-semibold">Confirmer</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast card rounded-xl px-5 py-3 text-sm font-medium"></div>
+
 <script>
 const GUILD_ID = "{{ guild_id }}";
 
+function showToast(message, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = (type === 'success' ? '✅ ' : '⚠️ ') + message;
+  toast.style.borderLeft = type === 'success' ? '3px solid #22c55e' : '3px solid #ef4444';
+  toast.classList.add('visible');
+  setTimeout(() => toast.classList.remove('visible'), 3200);
+}
+
+function askConfirm(title, message, { extraHtml = '', confirmLabel = 'Confirmer' } = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('confirm-overlay');
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-message').textContent = message;
+    document.getElementById('confirm-extra').innerHTML = extraHtml;
+    const okBtn = document.getElementById('confirm-ok');
+    const cancelBtn = document.getElementById('confirm-cancel');
+    okBtn.textContent = confirmLabel;
+    overlay.classList.add('visible');
+
+    const cleanup = (result) => {
+      overlay.classList.remove('visible');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      resolve(result);
+    };
+    const onOk = () => {
+      const extraInput = document.getElementById('confirm-extra-input');
+      cleanup(extraInput ? extraInput.value : true);
+    };
+    const onCancel = () => cleanup(null);
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+  });
+}
+
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => {
-      b.classList.remove('border-indigo-500', 'text-white');
-      b.classList.add('border-transparent', 'text-slate-400');
-    });
-    btn.classList.remove('border-transparent', 'text-slate-400');
-    btn.classList.add('border-indigo-500', 'text-white');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
     document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
     document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
 
@@ -86,213 +248,254 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-async function loadEmployees() {
-  const res = await fetch(`/api/${GUILD_ID}/employees?status=active`);
-  const container = document.getElementById('employees-list');
-  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
-  const employees = await res.json();
-  if (employees.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun employé actif.</p>'; return; }
-  container.innerHTML = employees.map(e => `
-    <div class="bg-slate-800 rounded-xl p-5 flex justify-between items-center">
-      <div class="flex items-center gap-3">
-        ${e.avatar ? `<img src="${e.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
-        <div>
-          <p class="font-bold">${e.username}</p>
-          <p class="text-slate-400 text-sm">Embauché le ${new Date(e.hired_at).toLocaleDateString('fr-FR')}</p>
-        </div>
-      </div>
-      <div class="flex gap-2">
-        <button onclick="sanctionEmployee('${e.user_id}')" class="text-sm bg-yellow-700 hover:bg-yellow-600 transition rounded-lg px-3 py-1">⚠️ Sanctionner</button>
-        <button onclick="imprisonEmployee('${e.user_id}')" class="text-sm bg-slate-900 hover:bg-black transition rounded-lg px-3 py-1 border border-slate-500">🔒 Prison</button>
-        <button onclick="fireEmployee('${e.user_id}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">🚪 Virer</button>
-      </div>
-    </div>`).join('');
-}
-
-async function sanctionEmployee(userId) {
-  const reason = prompt("Raison de la sanction :");
-  if (!reason) return;
-  await fetch(`/api/${GUILD_ID}/employees/${userId}/sanction`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason}) });
-  loadEmployees();
-}
-
-async function fireEmployee(userId) {
-  const reason = prompt("Raison du licenciement :");
-  if (!reason) return;
-  await fetch(`/api/${GUILD_ID}/employees/${userId}/fire`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason}) });
-  loadEmployees();
-}
-
-async function imprisonEmployee(userId) {
-  const hours = prompt("Durée de la peine de prison (en heures) :");
-  if (!hours || isNaN(hours) || Number(hours) <= 0) return;
-  const res = await fetch(`/api/${GUILD_ID}/employees/${userId}/imprison`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({hours}) });
-  if (!res.ok) {
-    const err = await res.json();
-    alert('⚠️ ' + (err.detail || 'Erreur.'));
-    return;
-  }
-  alert('🔒 Membre envoyé en prison.');
-  loadEmployees();
-}
-
-async function acceptLeave(id) { await fetch(`/api/${GUILD_ID}/leave_requests/${id}/accept`, { method: 'POST' }); loadLeaves('pending'); }
-
-async function denyLeave(id) { await fetch(`/api/${GUILD_ID}/leave_requests/${id}/deny`, { method: 'POST' }); loadLeaves('pending'); }
-
-async function loadLeaves(status) {
-  const url = status ? `/api/${GUILD_ID}/leave_requests?status=${status}` : `/api/${GUILD_ID}/leave_requests`;
-  const res = await fetch(url);
-  const container = document.getElementById('leaves-list');
-  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
-  const items = await res.json();
-  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune demande.</p>'; return; }
-  container.innerHTML = items.map(l => `
-    <div class="bg-slate-800 rounded-xl p-5">
-      <div class="flex justify-between items-start">
-        <div class="flex items-center gap-3">
-          ${l.avatar ? `<img src="${l.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
-          <div>
-            <p class="font-bold">${l.username}</p>
-            <p class="text-slate-400 text-sm">${l.start_date} → ${l.end_date}</p>
-          </div>
-        </div>
-        <span class="text-xs px-2 py-1 rounded-full ${l.status === 'accepted' ? 'bg-green-700' : l.status === 'refused' ? 'bg-red-700' : 'bg-yellow-700'}">${l.status}</span>
-      </div>
-      ${l.reason ? `<p class="text-slate-300 text-sm mt-3">${l.reason}</p>` : ''}
-      ${l.status === 'pending' ? `
-      <div class="mt-3 flex gap-2">
-        <button onclick="acceptLeave('${l.id}')" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">✅ Accepter</button>
-        <button onclick="denyLeave('${l.id}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">❌ Refuser</button>
-      </div>` : ''}
-    </div>`).join('');
-}
-
-async function resolveIncident(id) {
-  const note = prompt("Note de résolution (optionnel) :") || "";
-  await fetch(`/api/${GUILD_ID}/incidents/${id}/resolve`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({note}) });
-  loadIncidents('open');
-}
-
-async function dismissIncident(id) {
-  const note = prompt("Note (optionnel) :") || "";
-  await fetch(`/api/${GUILD_ID}/incidents/${id}/dismiss`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({note}) });
-  loadIncidents('open');
-}
-
-async function loadIncidents(status) {
-  const url = status ? `/api/${GUILD_ID}/incidents?status=${status}` : `/api/${GUILD_ID}/incidents`;
-  const res = await fetch(url);
-  const container = document.getElementById('incidents-list');
-  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
-  const items = await res.json();
-  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun rapport.</p>'; return; }
-  container.innerHTML = items.map(i => `
-    <div class="bg-slate-800 rounded-xl p-5">
-      <div class="flex justify-between items-start">
-        <div class="flex items-center gap-3">
-          ${i.avatar ? `<img src="${i.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
-          <div>
-            <p class="font-bold">${i.username}</p>
-            <p class="text-slate-400 text-sm">${i.incident_type}${i.line_info ? ' — ' + i.line_info : ''}</p>
-          </div>
-        </div>
-        <span class="text-xs px-2 py-1 rounded-full ${i.status === 'resolved' ? 'bg-green-700' : i.status === 'dismissed' ? 'bg-slate-600' : 'bg-orange-700'}">${i.status}</span>
-      </div>
-      <p class="text-slate-300 text-sm mt-3">${i.description}</p>
-      ${i.resolution_note ? `<p class="text-slate-500 text-xs mt-2">Note : ${i.resolution_note}</p>` : ''}
-      ${i.status === 'open' ? `
-      <div class="mt-3 flex gap-2">
-        <button onclick="resolveIncident('${i.id}')" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">✅ Résoudre</button>
-        <button onclick="dismissIncident('${i.id}')" class="text-sm bg-slate-600 hover:bg-slate-500 transition rounded-lg px-3 py-1">🗑️ Classer sans suite</button>
-      </div>` : ''}
-    </div>`).join('');
-}
-
-async function closeTicket(id) {
-  await fetch(`/api/${GUILD_ID}/tickets/${id}/close`, { method: 'POST' });
-  loadTickets('open');
-}
-
-async function loadTickets(status) {
-  const url = status ? `/api/${GUILD_ID}/tickets?status=${status}` : `/api/${GUILD_ID}/tickets`;
-  const res = await fetch(url);
-  const container = document.getElementById('tickets-list');
-  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (rôle RH requis).</p>'; return; }
-  const items = await res.json();
-  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun ticket.</p>'; return; }
-  container.innerHTML = items.map(t => `
-    <div class="bg-slate-800 rounded-xl p-5 flex justify-between items-center">
-      <div class="flex items-center gap-3">
-        ${t.avatar ? `<img src="${t.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
-        <div>
-          <p class="font-bold">${t.subject}</p>
-          <p class="text-slate-400 text-sm">${t.username}${t.channel_name ? ' — #' + t.channel_name : ''}</p>
-        </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-xs px-2 py-1 rounded-full ${t.status === 'closed' ? 'bg-slate-600' : 'bg-green-700'}">${t.status}</span>
-        ${t.status === 'open' ? `<button onclick="closeTicket('${t.id}')" class="text-sm bg-red-700 hover:bg-red-600 transition rounded-lg px-3 py-1">🔒 Fermer</button>` : ''}
-      </div>
-    </div>`).join('');
-}
-
-async function releasePrison(id) {
-  await fetch(`/api/${GUILD_ID}/prison/${id}/release`, { method: 'POST' });
-  loadPrison('active');
-}
-
-async function loadPrison(status) {
-  const url = status ? `/api/${GUILD_ID}/prison?status=${status}` : `/api/${GUILD_ID}/prison`;
-  const res = await fetch(url);
-  const container = document.getElementById('prison-list');
-  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé (admin requis).</p>'; return; }
-  const items = await res.json();
-  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune peine de prison.</p>'; return; }
-  container.innerHTML = items.map(p => `
-    <div class="bg-slate-800 rounded-xl p-5 flex justify-between items-center">
-      <div class="flex items-center gap-3">
-        ${p.avatar ? `<img src="${p.avatar}" class="w-10 h-10 rounded-full">` : '<div class="w-10 h-10 rounded-full bg-slate-600"></div>'}
-        <div>
-          <p class="font-bold">${p.username}</p>
-          <p class="text-slate-400 text-sm">Depuis le ${new Date(p.created_at).toLocaleString('fr-FR')} — jusqu'au ${new Date(p.ends_at).toLocaleString('fr-FR')}</p>
-        </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-xs px-2 py-1 rounded-full ${p.status === 'active' ? 'bg-red-700' : 'bg-slate-600'}">${p.status}</span>
-        ${p.status === 'active' ? `<button onclick="releasePrison('${p.id}')" class="text-sm bg-green-700 hover:bg-green-600 transition rounded-lg px-3 py-1">🔓 Libérer</button>` : ''}
-      </div>
-    </div>`).join('');
-}
-
 document.querySelectorAll('.leave-filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.leave-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
-    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    document.querySelectorAll('.leave-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-800'));
+    btn.classList.replace('bg-slate-800', 'bg-indigo-600');
     loadLeaves(btn.dataset.status);
   });
 });
 document.querySelectorAll('.incident-filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.incident-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
-    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    document.querySelectorAll('.incident-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-800'));
+    btn.classList.replace('bg-slate-800', 'bg-indigo-600');
     loadIncidents(btn.dataset.status);
   });
 });
 document.querySelectorAll('.ticket-filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.ticket-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
-    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    document.querySelectorAll('.ticket-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-800'));
+    btn.classList.replace('bg-slate-800', 'bg-indigo-600');
     loadTickets(btn.dataset.status);
   });
 });
 document.querySelectorAll('.prison-filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.prison-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-700'));
-    btn.classList.replace('bg-slate-700', 'bg-indigo-600');
+    document.querySelectorAll('.prison-filter-btn').forEach(b => b.classList.replace('bg-indigo-600', 'bg-slate-800'));
+    btn.classList.replace('bg-slate-800', 'bg-indigo-600');
     loadPrison(btn.dataset.status);
   });
 });
+
+// --- Employés ---
+async function loadEmployees() {
+  const res = await fetch(`/api/${GUILD_ID}/employees?status=active`);
+  const container = document.getElementById('employees-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé.</p>'; return; }
+  const employees = await res.json();
+  if (employees.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun employé actif.</p>'; return; }
+  container.innerHTML = employees.map(e => `
+    <div class="card rounded-2xl p-5 flex justify-between items-center flex-wrap gap-3">
+      <div class="flex items-center gap-3">
+        ${e.avatar ? `<img src="${e.avatar}" class="w-11 h-11 rounded-full ring-2 ring-slate-700">` : '<div class="w-11 h-11 rounded-full bg-slate-700"></div>'}
+        <div>
+          <p class="font-semibold">${e.username}</p>
+          <p class="text-slate-500 text-sm">Embauché le ${new Date(e.hired_at).toLocaleDateString('fr-FR')}</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="sanctionEmployee('${e.user_id}', '${e.username}')" class="btn-action text-sm bg-yellow-700/80 hover:bg-yellow-600 rounded-xl px-3 py-1.5 font-medium">⚠️ Sanctionner</button>
+        <button onclick="imprisonEmployee('${e.user_id}', '${e.username}')" class="btn-action text-sm bg-slate-900 border border-slate-600 hover:border-slate-400 rounded-xl px-3 py-1.5 font-medium">🔒 Prison</button>
+        <button onclick="fireEmployee('${e.user_id}', '${e.username}')" class="btn-action text-sm bg-red-700/80 hover:bg-red-600 rounded-xl px-3 py-1.5 font-medium">🚪 Virer</button>
+      </div>
+    </div>`).join('');
+}
+
+async function sanctionEmployee(userId, username) {
+  const reason = await askConfirm(
+    `Sanctionner ${username} ?`,
+    "Cette action donnera le rôle Sanctionné et créera un salon privé de tribunal.",
+    { extraHtml: '<textarea id="confirm-extra-input" placeholder="Raison de la sanction..." class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm mb-2 resize-none" rows="3"></textarea>', confirmLabel: 'Sanctionner' }
+  );
+  if (!reason) return;
+  const res = await fetch(`/api/${GUILD_ID}/employees/${userId}/sanction`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason}) });
+  if (res.ok) { showToast(`${username} a été sanctionné.`); } else { showToast('Erreur lors de la sanction.', 'error'); }
+  loadEmployees();
+}
+
+async function fireEmployee(userId, username) {
+  const reason = await askConfirm(
+    `Virer ${username} ?`,
+    "Cette action est définitive et met fin au contrat de l'employé.",
+    { extraHtml: '<textarea id="confirm-extra-input" placeholder="Raison du licenciement..." class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm mb-2 resize-none" rows="3"></textarea>', confirmLabel: 'Virer' }
+  );
+  if (!reason) return;
+  const res = await fetch(`/api/${GUILD_ID}/employees/${userId}/fire`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reason}) });
+  if (res.ok) { showToast(`${username} a été licencié.`); } else { showToast('Erreur lors du licenciement.', 'error'); }
+  loadEmployees();
+}
+
+async function imprisonEmployee(userId, username) {
+  const hours = await askConfirm(
+    `Envoyer ${username} en prison ?`,
+    "Tous ses rôles seront retirés temporairement puis restaurés automatiquement à la fin de la peine.",
+    { extraHtml: '<input id="confirm-extra-input" type="number" min="1" placeholder="Durée en heures" class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm mb-2">', confirmLabel: 'Envoyer en prison' }
+  );
+  if (!hours || isNaN(hours) || Number(hours) <= 0) return;
+  const res = await fetch(`/api/${GUILD_ID}/employees/${userId}/imprison`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({hours}) });
+  if (!res.ok) {
+    const err = await res.json();
+    showToast(err.detail || 'Erreur.', 'error');
+    return;
+  }
+  showToast(`${username} a été envoyé en prison pour ${hours}h.`);
+  loadEmployees();
+}
+
+// --- Congés ---
+async function loadLeaves(status) {
+  const url = status ? `/api/${GUILD_ID}/leave_requests?status=${status}` : `/api/${GUILD_ID}/leave_requests`;
+  const res = await fetch(url);
+  const container = document.getElementById('leaves-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé.</p>'; return; }
+  const items = await res.json();
+  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune demande.</p>'; return; }
+  container.innerHTML = items.map(l => `
+    <div class="card rounded-2xl p-5">
+      <div class="flex justify-between items-start flex-wrap gap-2">
+        <div class="flex items-center gap-3">
+          ${l.avatar ? `<img src="${l.avatar}" class="w-10 h-10 rounded-full ring-2 ring-slate-700">` : '<div class="w-10 h-10 rounded-full bg-slate-700"></div>'}
+          <div>
+            <p class="font-semibold">${l.username}</p>
+            <p class="text-slate-500 text-sm">${l.start_date} → ${l.end_date}</p>
+          </div>
+        </div>
+        <span class="text-xs px-3 py-1 rounded-full font-medium ${l.status === 'accepted' ? 'bg-green-700/80' : l.status === 'refused' ? 'bg-red-700/80' : 'bg-yellow-700/80'}">${l.status}</span>
+      </div>
+      ${l.reason ? `<p class="text-slate-300 text-sm mt-3">${l.reason}</p>` : ''}
+      ${l.status === 'pending' ? `
+      <div class="mt-4 flex gap-2">
+        <button onclick="acceptLeave('${l.id}', '${l.username}')" class="btn-action text-sm bg-green-700/80 hover:bg-green-600 rounded-xl px-4 py-1.5 font-medium">✅ Accepter</button>
+        <button onclick="denyLeave('${l.id}', '${l.username}')" class="btn-action text-sm bg-red-700/80 hover:bg-red-600 rounded-xl px-4 py-1.5 font-medium">❌ Refuser</button>
+      </div>` : ''}
+    </div>`).join('');
+}
+async function acceptLeave(id, username) {
+  const ok = await askConfirm(`Accepter le congé de ${username} ?`, "Un message lui sera envoyé automatiquement.", { confirmLabel: 'Accepter' });
+  if (!ok) return;
+  await fetch(`/api/${GUILD_ID}/leave_requests/${id}/accept`, { method: 'POST' });
+  showToast('Congé accepté.');
+  loadLeaves('pending');
+}
+async function denyLeave(id, username) {
+  const ok = await askConfirm(`Refuser le congé de ${username} ?`, "Un message lui sera envoyé automatiquement.", { confirmLabel: 'Refuser' });
+  if (!ok) return;
+  await fetch(`/api/${GUILD_ID}/leave_requests/${id}/deny`, { method: 'POST' });
+  showToast('Congé refusé.');
+  loadLeaves('pending');
+}
+
+// --- Incidents ---
+async function loadIncidents(status) {
+  const url = status ? `/api/${GUILD_ID}/incidents?status=${status}` : `/api/${GUILD_ID}/incidents`;
+  const res = await fetch(url);
+  const container = document.getElementById('incidents-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé.</p>'; return; }
+  const items = await res.json();
+  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun rapport.</p>'; return; }
+  container.innerHTML = items.map(i => `
+    <div class="card rounded-2xl p-5">
+      <div class="flex justify-between items-start flex-wrap gap-2">
+        <div class="flex items-center gap-3">
+          ${i.avatar ? `<img src="${i.avatar}" class="w-10 h-10 rounded-full ring-2 ring-slate-700">` : '<div class="w-10 h-10 rounded-full bg-slate-700"></div>'}
+          <div>
+            <p class="font-semibold">${i.username}</p>
+            <p class="text-slate-500 text-sm">${i.incident_type}${i.line_info ? ' — ' + i.line_info : ''}</p>
+          </div>
+        </div>
+        <span class="text-xs px-3 py-1 rounded-full font-medium ${i.status === 'resolved' ? 'bg-green-700/80' : i.status === 'dismissed' ? 'bg-slate-700' : 'bg-orange-700/80'}">${i.status}</span>
+      </div>
+      <p class="text-slate-300 text-sm mt-3">${i.description}</p>
+      ${i.resolution_note ? `<p class="text-slate-500 text-xs mt-2">Note : ${i.resolution_note}</p>` : ''}
+      ${i.status === 'open' ? `
+      <div class="mt-4 flex gap-2">
+        <button onclick="resolveIncident('${i.id}')" class="btn-action text-sm bg-green-700/80 hover:bg-green-600 rounded-xl px-4 py-1.5 font-medium">✅ Résoudre</button>
+        <button onclick="dismissIncident('${i.id}')" class="btn-action text-sm bg-slate-700 hover:bg-slate-600 rounded-xl px-4 py-1.5 font-medium">🗑️ Classer sans suite</button>
+      </div>` : ''}
+    </div>`).join('');
+}
+async function resolveIncident(id) {
+  const note = await askConfirm(
+    "Résoudre cet incident ?", "Ajoute une note de résolution (optionnel).",
+    { extraHtml: '<textarea id="confirm-extra-input" placeholder="Note (optionnel)..." class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm mb-2 resize-none" rows="2"></textarea>', confirmLabel: 'Résoudre' }
+  );
+  if (note === null) return;
+  await fetch(`/api/${GUILD_ID}/incidents/${id}/resolve`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({note}) });
+  showToast('Incident résolu.');
+  loadIncidents('open');
+}
+async function dismissIncident(id) {
+  const note = await askConfirm(
+    "Classer sans suite ?", "Ajoute une note (optionnel).",
+    { extraHtml: '<textarea id="confirm-extra-input" placeholder="Note (optionnel)..." class="w-full bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2 text-sm mb-2 resize-none" rows="2"></textarea>', confirmLabel: 'Classer sans suite' }
+  );
+  if (note === null) return;
+  await fetch(`/api/${GUILD_ID}/incidents/${id}/dismiss`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({note}) });
+  showToast('Incident classé sans suite.');
+  loadIncidents('open');
+}
+
+// --- Tickets ---
+async function loadTickets(status) {
+  const url = status ? `/api/${GUILD_ID}/tickets?status=${status}` : `/api/${GUILD_ID}/tickets`;
+  const res = await fetch(url);
+  const container = document.getElementById('tickets-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé.</p>'; return; }
+  const items = await res.json();
+  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucun ticket.</p>'; return; }
+  container.innerHTML = items.map(t => `
+    <div class="card rounded-2xl p-5 flex justify-between items-center flex-wrap gap-3">
+      <div class="flex items-center gap-3">
+        ${t.avatar ? `<img src="${t.avatar}" class="w-10 h-10 rounded-full ring-2 ring-slate-700">` : '<div class="w-10 h-10 rounded-full bg-slate-700"></div>'}
+        <div>
+          <p class="font-semibold">${t.subject}</p>
+          <p class="text-slate-500 text-sm">${t.username}${t.channel_name ? ' — #' + t.channel_name : ''}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-3 py-1 rounded-full font-medium ${t.status === 'closed' ? 'bg-slate-700' : 'bg-green-700/80'}">${t.status}</span>
+        ${t.status === 'open' ? `<button onclick="closeTicket('${t.id}', '${t.subject}')" class="btn-action text-sm bg-red-700/80 hover:bg-red-600 rounded-xl px-4 py-1.5 font-medium">🔒 Fermer</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+async function closeTicket(id, subject) {
+  const ok = await askConfirm(`Fermer le ticket "${subject}" ?`, "Le salon sera archivé automatiquement.", { confirmLabel: 'Fermer' });
+  if (!ok) return;
+  await fetch(`/api/${GUILD_ID}/tickets/${id}/close`, { method: 'POST' });
+  showToast('Ticket fermé.');
+  loadTickets('open');
+}
+
+// --- Prison ---
+async function loadPrison(status) {
+  const url = status ? `/api/${GUILD_ID}/prison?status=${status}` : `/api/${GUILD_ID}/prison`;
+  const res = await fetch(url);
+  const container = document.getElementById('prison-list');
+  if (!res.ok) { container.innerHTML = '<p class="text-red-400">Accès refusé.</p>'; return; }
+  const items = await res.json();
+  if (items.length === 0) { container.innerHTML = '<p class="text-slate-400">Aucune peine de prison.</p>'; return; }
+  container.innerHTML = items.map(p => `
+    <div class="card rounded-2xl p-5 flex justify-between items-center flex-wrap gap-3">
+      <div class="flex items-center gap-3">
+        ${p.avatar ? `<img src="${p.avatar}" class="w-10 h-10 rounded-full ring-2 ring-slate-700">` : '<div class="w-10 h-10 rounded-full bg-slate-700"></div>'}
+        <div>
+          <p class="font-semibold">${p.username}</p>
+          <p class="text-slate-500 text-sm">Depuis le ${new Date(p.created_at).toLocaleString('fr-FR')} — jusqu'au ${new Date(p.ends_at).toLocaleString('fr-FR')}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-3 py-1 rounded-full font-medium ${p.status === 'active' ? 'bg-red-700/80' : 'bg-slate-700'}">${p.status}</span>
+        ${p.status === 'active' ? `<button onclick="releasePrison('${p.id}', '${p.username}')" class="btn-action text-sm bg-green-700/80 hover:bg-green-600 rounded-xl px-4 py-1.5 font-medium">🔓 Libérer</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+async function releasePrison(id, username) {
+  const ok = await askConfirm(`Libérer ${username} ?`, "Ses rôles d'origine seront restaurés immédiatement.", { confirmLabel: 'Libérer' });
+  if (!ok) return;
+  await fetch(`/api/${GUILD_ID}/prison/${id}/release`, { method: 'POST' });
+  showToast(`${username} a été libéré.`);
+  loadPrison('active');
+}
 
 loadEmployees();
 </script>

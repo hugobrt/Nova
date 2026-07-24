@@ -2,31 +2,239 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Connexion Staff</title>
+<title>Espace Staff — Connexion</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+  * { font-family: 'Poppins', sans-serif; }
+
+  body {
+    background: radial-gradient(circle at 10% 0%, #1e293b 0%, #0f172a 50%, #020617 100%);
+    min-height: 100vh;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  .glow-text {
+    background: linear-gradient(90deg, #818cf8, #38bdf8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(129, 140, 248, 0.35);
+    animation: float 7s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); opacity: 0.25; }
+    50% { transform: translateY(-25px); opacity: 0.6; }
+  }
+
+  .intro-screen {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 50;
+    opacity: 1;
+    transition: opacity 0.6s ease;
+  }
+
+  .intro-content { text-align: center; }
+
+  .logo-badge {
+    width: 72px; height: 72px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(56,189,248,0.15));
+    border: 1px solid rgba(129,140,248,0.3);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.5rem;
+    opacity: 0;
+    transform: scale(0.6) rotate(-8deg);
+    animation: logoPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    box-shadow: 0 0 40px rgba(99,102,241,0.25);
+  }
+  @keyframes logoPop {
+    to { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+
+  .brand-line {
+    opacity: 0;
+    animation: lineIn 0.6s ease forwards;
+    animation-delay: 0.35s;
+  }
+  .brand-title {
+    opacity: 0;
+    animation: lineIn 0.6s ease forwards;
+    animation-delay: 0.5s;
+  }
+  .brand-sub {
+    opacity: 0;
+    animation: lineIn 0.6s ease forwards;
+    animation-delay: 0.65s;
+  }
+  .divider-line {
+    width: 0%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #818cf8, transparent);
+    margin: 1.75rem auto;
+    animation: growLine 0.8s ease forwards;
+    animation-delay: 1.1s;
+  }
+  @keyframes growLine { to { width: 60%; } }
+
+  .welcome-line {
+    opacity: 0;
+    animation: lineIn 0.7s ease forwards;
+    animation-delay: 1.5s;
+  }
+  @keyframes lineIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .login-card {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+    animation: cardIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes cardIn {
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .card {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+  }
+
+  .field-in {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: lineIn 0.5s ease forwards;
+  }
+
+  .input-glow {
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .input-glow:focus {
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
+    border-color: #818cf8;
+  }
+
+  /* Champ mot de passe — halo rouge doux et respirant */
+  .password-halo {
+    border-radius: 0.75rem;
+    animation: haloPulse 3s ease-in-out infinite;
+  }
+  @keyframes haloPulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(239,68,68,0.35), 0 0 14px 0 rgba(239,68,68,0.15); }
+    50% { box-shadow: 0 0 0 1px rgba(239,68,68,0.6), 0 0 22px 3px rgba(239,68,68,0.3); }
+  }
+  .password-halo input {
+    background: #0f172a;
+    border: none;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    outline: none;
+    color: white;
+  }
+
+  .btn-shine {
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-shine::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -75%;
+    width: 50%; height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.3), transparent);
+    transform: skewX(-20deg);
+    transition: left 0.6s ease;
+  }
+  .btn-shine:hover::after { left: 125%; }
+
+  .hidden-init { display: none; }
+</style>
 </head>
-<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center">
-  <div class="bg-slate-800 rounded-2xl p-8 w-full max-w-sm shadow-xl">
-    <h1 class="text-2xl font-bold mb-1 text-center">🚌 Espace Staff</h1>
-    <p class="text-slate-400 text-sm text-center mb-6">Employés · Congés · Incidents · Tickets · Tribunal</p>
-    {% if error %}
-    <div class="bg-red-900/50 border border-red-600 text-red-300 text-sm rounded-lg px-3 py-2 mb-4">{{ error }}</div>
-    {% endif %}
-    <form method="POST" action="/staff/login" class="space-y-4">
-      <div>
-        <label class="block text-sm text-slate-400 mb-1">Identifiant</label>
-        <input type="text" name="username" required autocomplete="username"
-               class="w-full bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
-      </div>
-      <div>
-        <label class="block text-sm text-slate-400 mb-1">Mot de passe</label>
-        <input type="password" name="password" required autocomplete="current-password"
-               class="w-full bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
-      </div>
-      <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 transition rounded-lg py-2 font-semibold">
-        Se connecter
-      </button>
-    </form>
+<body class="min-h-screen flex items-center justify-center text-white relative">
+
+  <div id="particles" class="fixed inset-0 overflow-hidden pointer-events-none"></div>
+
+  <!-- INTRO -->
+  <div id="intro-screen" class="intro-screen">
+    <div class="intro-content">
+      <div class="logo-badge"><span class="text-3xl">🚌</span></div>
+      <p class="brand-line text-sm tracking-[0.3em] text-indigo-400 mb-2">SYSTÈME PROPULSÉ PAR</p>
+      <h1 class="brand-title text-4xl font-extrabold glow-text">Nova-bots©</h1>
+      <p class="brand-sub text-slate-500 mt-2 text-sm tracking-widest">by DRT-HBR</p>
+      <div class="divider-line"></div>
+      <h2 class="welcome-line text-2xl font-semibold text-slate-200">Bienvenue sur l'espace STAFF</h2>
+    </div>
   </div>
+
+  <!-- LOGIN CARD -->
+  <div id="login-wrapper" class="hidden-init relative z-10">
+    <div class="login-card card rounded-3xl p-10 w-full max-w-sm shadow-2xl">
+      <div class="text-center mb-8">
+        <div class="text-4xl mb-2">🚌</div>
+        <h1 class="text-2xl font-bold">Espace <span class="glow-text">STAFF</span></h1>
+        <p class="text-slate-400 text-sm mt-2">Employés · Congés · Incidents · Tickets · Tribunal</p>
+      </div>
+
+      {% if error %}
+      <div class="bg-red-900/50 border border-red-600 text-red-300 text-sm rounded-xl px-4 py-3 mb-5 text-center">{{ error }}</div>
+      {% endif %}
+
+      <form method="POST" action="/staff/login" class="space-y-5">
+        <div class="field-in" style="animation-delay: 0.1s;">
+          <label class="block text-sm text-slate-400 mb-1.5">Identifiant</label>
+          <input type="text" name="username" required autocomplete="username"
+                 class="input-glow w-full bg-slate-900/60 border border-slate-700 rounded-xl px-4 py-3 outline-none">
+        </div>
+        <div class="field-in" style="animation-delay: 0.2s;">
+          <label class="block text-sm text-slate-400 mb-1.5">Mot de passe</label>
+          <div class="password-halo">
+            <input type="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+          </div>
+        </div>
+        <button type="submit" class="field-in btn-shine w-full bg-indigo-600 hover:bg-indigo-500 transition rounded-xl py-3 font-semibold shadow-lg shadow-indigo-900/50" style="animation-delay: 0.3s;">
+          Se connecter
+        </button>
+      </form>
+
+      <p class="text-center text-slate-600 text-xs mt-8">Nova-bots© — by DRT-HBR</p>
+    </div>
+  </div>
+
+<script>
+  const particlesContainer = document.getElementById('particles');
+  for (let i = 0; i < 25; i++) {
+    const p = document.createElement('div');
+    const size = Math.random() * 4 + 2;
+    p.className = 'particle';
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.top = Math.random() * 100 + '%';
+    p.style.animationDelay = (Math.random() * 6) + 's';
+    p.style.animationDuration = (5 + Math.random() * 4) + 's';
+    particlesContainer.appendChild(p);
+  }
+
+  const introScreen = document.getElementById('intro-screen');
+  const loginWrapper = document.getElementById('login-wrapper');
+
+  setTimeout(() => {
+    introScreen.style.opacity = '0';
+    setTimeout(() => {
+      introScreen.remove();
+      loginWrapper.classList.remove('hidden-init');
+    }, 600);
+  }, 3200);
+</script>
 </body>
 </html>
